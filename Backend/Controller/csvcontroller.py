@@ -102,19 +102,9 @@ def _to_df(
 ) -> pd.DataFrame:
     """
     将二进制数据读成 DataFrame。
-
-    Args:
-        binary: 文件的二进制数据
-        nrows: 限制读取的行数（仅 CSV）
-        sep: CSV 分隔符
-        filename: 文件名（用于判断文件类型）
-        encoding: CSV 编码
-
-    Returns:
-        pd.DataFrame: 解析后的数据框
-
-    Raises:
-        ImportError: 缺少必要的 Excel 处理库
+    - 若 filename 指向 .xls/.xlsx，使用 read_excel
+    - 否则按 CSV 处理并做编码回退
+    - Excel 文件如果存在多级表头，会自动展平成单级列名
     """
     name = (filename or "").lower()
 
@@ -138,6 +128,11 @@ def _to_df(
                 df = pd.read_excel(bio)
             except Exception:
                 raise e
+        # Excel 展平多级表头
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = ["_".join([str(x) for x in col if x]) for col in df.columns.values]
+
+    # CSV 文件处理
     else:
         # CSV 文件处理
         df = _read_csv_with_fallback(binary, nrows=nrows, sep=sep, encoding=encoding)
