@@ -4,7 +4,7 @@ from functools import reduce
 import numpy as np
 import csv
 import re
-from typing import Any
+from typing import Any, Dict
 
 
 def detect_separator(binary: bytes, encodings=('utf-8', 'utf-8-sig', 'latin1', 'gbk')):
