@@ -25,10 +25,17 @@ def detect_separator(binary: bytes, encodings=('utf-8', 'utf-8-sig', 'latin1', '
     print("[DEBUG] 自动检测失败，使用默认分隔符 ',' 和编码 'utf-8'")
     return ',', 'utf-8'
 
-def _to_df(binary: bytes) -> pd.DataFrame:
+
+def _to_df(binary: bytes, encoding: str = 'utf-8') -> pd.DataFrame:
     """
-    将二进制CSV读成DataFrame。
-    - 自动推断编码（常见UTF-8/GBK情况pandas会处理；若有特殊编码可扩展）
+    将二进制 CSV 读成 DataFrame。
+
+    Args:
+        binary: CSV 文件的二进制数据
+        encoding: 编码格式（默认 UTF-8）
+
+    Returns:
+        pd.DataFrame: 解析后的数据框
     """
     # 你也可以在 read_csv 里加参数，如 sep=';', encoding='utf-8', dtype=str 等
     sep, encoding = detect_separator(binary)
@@ -38,18 +45,38 @@ def _to_df(binary: bytes) -> pd.DataFrame:
     df.attrs["encoding"] = encoding
     return df
 
-def read_csv_preview(binary: bytes, n: int = 5):
-    """返回前 n 行的预览记录（list[dict]）与列名"""
-    df = _to_df(binary)
+def read_csv_preview(binary: bytes, n: int = 5, encoding: str = 'utf-8') -> Dict:
+    """
+    返回前 n 行的预览记录与列名。
+
+    Args:
+        binary: CSV 文件的二进制数据
+        n: 预览行数（默认 5 行）
+        encoding: 编码格式
+
+    Returns:
+        dict: 包含 'columns' 和 'rows' 的字典
+    """
+    df = _to_df(binary, encoding=encoding)
     head = df.head(n)
     return {
         'columns': list(head.columns),
         'rows': head.to_dict(orient='records')
     }
 
-def summarize_csv(binary: bytes):
-    """返回整体概要信息：行/列、字段类型、缺失统计等"""
-    df = _to_df(binary)
+
+def summarize_csv(binary: bytes, encoding: str = 'utf-8') -> Dict:
+    """
+    返回整体概要信息：行/列、字段类型、缺失统计等。
+
+    Args:
+        binary: CSV 文件的二进制数据
+        encoding: 编码格式
+
+    Returns:
+        dict: 包含行数、列数、数据类型、缺失值统计等信息
+    """
+    df = _to_df(binary, encoding=encoding)
 
     # 字段类型（pandas dtype -> 简单字符串）
     dtypes = {col: str(dt) for col, dt in df.dtypes.items()}
@@ -57,9 +84,9 @@ def summarize_csv(binary: bytes):
     # 缺失值计数与占比
     na_count = df.isna().sum().to_dict()
     total_rows = len(df)
-    na_ratio = {k: (v / total_rows if total_rows else 0.0) for k, v in na_count.items()}
+    na_ratio = {k: round(v / total_rows, 4) if total_rows else 0.0 for k, v in na_count.items()}
 
-    summary = {
+    return {
         'rows': int(total_rows),
         'cols': int(df.shape[1]),
         'columns': list(df.columns),
@@ -316,28 +343,37 @@ def combine_df(df1: pd.DataFrame, df2: pd.DataFrame, mapping: list[dict]) -> pd.
 
 def export_data(df: pd.DataFrame, filename: str = 'output.csv', file_format: str = None) -> None:
     """
-    通用导出函数：支持 CSV, Excel, JSON
-    :param df: 需要导出的 DataFrame
-    :param filename: 文件名，默认 output.csv
-    :param file_format: 文件格式，可选 'csv', 'excel', 'json'，默认根据文件扩展名判断
+    通用导出函数：支持 CSV, Excel, JSON。
+
+    Args:
+        df: 需要导出的 DataFrame
+        filename: 文件名（默认 output.csv）
+        file_format: 文件格式 ('csv', 'excel', 'json')，默认根据文件扩展名判断
+
+    Raises:
+        ValueError: 无法识别文件格式或格式不支持
     """
     # 如果没有指定格式，则从文件名扩展名推断
     if file_format is None:
-        if filename.lower().endswith('.csv'):
+        lower_filename = filename.lower()
+        if lower_filename.endswith('.csv'):
             file_format = 'csv'
-        elif filename.lower().endswith(('.xls', '.xlsx')):
+        elif lower_filename.endswith(('.xls', '.xlsx')):
             file_format = 'excel'
-        elif filename.lower().endswith('.json'):
+        elif lower_filename.endswith('.json'):
             file_format = 'json'
         else:
-            raise ValueError("无法识别文件格式，请指定 file_format 参数 ('csv', 'excel', 'json')")
+            raise ValueError(
+                f"无法识别文件格式：{filename}。请指定 file_format 参数 ('csv', 'excel', 'json')"
+            )
 
     # 根据不同格式导出
     if file_format == 'csv':
-        df.to_csv(filename, index=False, encoding='utf-8')
+        df.to_csv(filename, index=False, encoding='utf-8-sig')
     elif file_format == 'excel':
         df.to_excel(filename, index=False, engine='openpyxl')
     elif file_format == 'json':
-        df.to_json(filename, orient='records', force_ascii=False)
+        df.to_json(filename, orient='records', force_ascii=False, indent=2)
     else:
         raise ValueError("不支持的文件格式: {}".format(file_format))
+
