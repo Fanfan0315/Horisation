@@ -315,8 +315,10 @@ def test_preview_api(client):
 ### 从旧API迁移
 
 **旧代码：**
+
 ```python
-from Backend.Controller.csv_handling import read_csv_preview
+from Backend.Sandbox.data_frame_handling.csv_handling import read_csv_preview
+
 preview = read_csv_preview(binary_data, n=10)
 ```
 
