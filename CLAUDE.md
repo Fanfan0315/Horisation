@@ -4,38 +4,61 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Horisation is a Flask-based web application for CSV/Excel data analysis and financial modeling. It provides file upload, preview, data summarization, and financial calculation capabilities through a web interface.
+Horisation is a Flask-based web application for CSV/Excel data analysis, financial modeling, and personal productivity. It provides file upload, preview, data summarization, financial calculation capabilities, user management, private notes, and memo management through a secure web interface with role-based access control.
 
 ## Architecture
 
 ### Backend Structure
-- **app.py**: Main Flask application entry point with route definitions
+- **app.py**: Main Flask application entry point with route definitions and user authentication
 - **Backend/Controller/**: Request handling and business logic
   - `csvcontroller.py`: Blueprint-based API endpoints for CSV/Excel operations with encoding fallback
   - `csv_handling.py`: Core data processing functions (cleaning, merging, exporting)
+  - `user_manager.py`: User authentication, session management, and role-based access control
+  - `auth_controller.py`: Authentication API endpoints (login, logout, user management)
+  - `notes_manager.py`: Private notes and diary management system
+  - `notes_controller.py`: Private notes API endpoints
+  - `memos_controller.py`: User-isolated memo/task management API endpoints
 - **Backend/Horfunc/**: Financial and analytical functions
   - `finpkg.py`: Monte Carlo price simulation using Geometric Brownian Motion
 - **Backend/Sandbox/**: Experimental/testing code
 
 ### Frontend Structure
 - **Template/**: Jinja2 HTML templates
-  - `Home.html`: Base layout template
+  - `Home.html`: Base layout template (login-protected)
   - `CSV.html`: CSV upload and preview interface
-  - `hormemo.html`: Memo/notes interface
+  - `hormemo.html`: User-isolated memo/task interface with real-time updates
   - `limit.html`: Limit tracking interface
-  - `horbase.html`: Shared base template components
+  - `horbase.html`: Shared base template with user authentication context
+  - `auth/`: Authentication templates
+    - `login.html`: User login page with modern design
+  - `notes/`: Private notes templates
+    - `notes.html`: Private notes management with categories and tags
 - **Static/**: Frontend assets
   - `js/horcsv.js`: CSV upload, drag-drop, preview/summary client logic
-  - `js/hormemo.js`: Memo functionality
+  - `js/hormemo.js`: Memo functionality (updated for user isolation)
   - `css/`: Styling files
   - `pic/`: Images
 
 ### Data Flow
-1. User uploads CSV/Excel via drag-drop or file picker
-2. Frontend JavaScript (horcsv.js) sends file to API endpoint
-3. Backend attempts UTF-8 encoding, falls back to GBK/GB2312/Big5/etc.
-4. Pandas processes the file and returns preview or summary
-5. Results rendered in browser table
+1. User authentication: Login required for all protected routes
+2. User uploads CSV/Excel via drag-drop or file picker
+3. Frontend JavaScript (horcsv.js) sends file to API endpoint with session validation
+4. Backend attempts UTF-8 encoding, falls back to GBK/GB2312/Big5/etc.
+5. Pandas processes the file and returns preview or summary
+6. Results rendered in browser table
+
+### User Management System
+**Authentication Flow**:
+1. All routes require login (redirect to `/login` if not authenticated)
+2. User credentials validated against `_data/users.json`
+3. Session tokens stored in `_data/sessions.json` with 24-hour expiry
+4. Role-based access control for different features
+
+**Data Storage Structure**:
+- `_data/users.json`: User accounts with plaintext passwords (development mode)
+- `_data/sessions.json`: Active user sessions with expiry timestamps
+- `_data/notes/{username}_notes.json`: User-isolated private notes
+- User-specific memo data stored within user objects
 
 ## Development Commands
 
@@ -143,14 +166,94 @@ simulate_price(S0, vol_annual, T, seed=None, basis=252)
 - Drag-drop counter pattern prevents flicker (dragCounter)
 - Fetch API with FormData for file uploads
 
+## User Roles and Permissions
+
+### Role Hierarchy
+- **horizon** (Level 100): Super Administrator
+  - Full system access including user management
+  - Sectors: `['all']` (can access all features)
+  - Permissions: `['admin', 'read', 'write', 'delete', 'user_manage']`
+
+- **horizonadmin** (Level 90): Horizon Administrator
+  - Administrative functions and user management
+  - Sectors: `['horizon', 'admin']`
+  - Permissions: `['admin', 'read', 'write', 'delete']`
+
+- **vip1** (Level 80): VIP Tier 1 User
+  - Advanced features and data access
+  - Sectors: `['vip', 'general']`
+  - Permissions: `['read', 'write']`
+
+- **vip2** (Level 70): VIP Tier 2 User
+  - Mid-tier features and data access
+  - Sectors: `['vip', 'general']`
+  - Permissions: `['read', 'write']`
+
+- **vip3** (Level 60): VIP Tier 3 User
+  - Basic VIP features and data access
+  - Sectors: `['vip', 'general']`
+  - Permissions: `['read', 'write']`
+
+- **user** (Level 10): Standard User
+  - Basic features and read-only access
+  - Sectors: `['general']`
+  - Permissions: `['read']`
+
+### Development Credentials
+- **Admin Account**: `horizon` / `horizon`
+- **Test User**: `fanfan0315` / `yyf`
+
+**Note**: Passwords are stored in plaintext for development convenience. In production, implement proper password hashing.
+
 ## Routes
 
-- `/` → Home page
+### Public Routes
+- `/login` → User login page
+
+### Protected Routes (Login Required)
+- `/` → Home dashboard
 - `/csv` → CSV upload workspace
-- `/hormemo` → Memo interface
+- `/hormemo` → User-isolated memo interface
+- `/notes` → Private notes and diary
 - `/limit` → Limit tracking
-- `/api/csv/preview` → Preview first N rows
-- `/api/csv/summary` → Full file statistics
+- `/profile` → User profile management
+
+### Admin Routes (Admin Permission Required)
+- `/admin/users` → User management interface
+
+### API Endpoints
+
+#### Authentication API (`/api/auth/`)
+- `POST /login` → User authentication
+- `POST /logout` → User logout (login required)
+- `GET /check-session` → Validate current session
+- `GET /profile` → Get current user info (login required)
+- `POST /register` → Create new user (admin required)
+- `GET /users` → List all users (admin required)
+- `PUT /users/<username>/role` → Update user role (admin required)
+- `PUT /users/<username>/status` → Activate/deactivate user (admin required)
+- `POST /permissions/check` → Check user permissions (login required)
+
+#### CSV Processing API (`/api/csv/`)
+- `POST /preview` → Preview first N rows
+- `POST /summary` → Full file statistics
+
+#### Notes API (`/api/notes/`) - All require login
+- `GET /` → List user's notes
+- `POST /` → Create new note
+- `GET /<note_id>` → Get specific note
+- `PUT /<note_id>` → Update note
+- `DELETE /<note_id>` → Delete note
+- `GET /categories` → List note categories
+- `GET /search` → Search notes
+- `GET /stats` → Get notes statistics
+
+#### Memos API (`/api/memos/`) - All require login
+- `GET /` → List user's memos (with filtering)
+- `POST /` → Create new memo
+- `PUT /<memo_id>` → Update memo
+- `DELETE /<memo_id>` → Delete memo
+- `GET /stats` → Get memo statistics
 
 ## Template Variables
 - `active_page`: Highlights current nav item ('home', 'csv', 'hormemo', 'limit')
