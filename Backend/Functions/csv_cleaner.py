@@ -13,59 +13,19 @@ class CSVCleaner:
     """CSV数据清洗器"""
 
     @staticmethod
-    def clean_column_names(
-        df: pd.DataFrame,
-        case: str = "upper",
-        prefix: Optional[str] = None,
-        strip_special: bool = True,
-        dedupe: bool = True
-    ) -> pd.DataFrame:
-        """
-        清洗列名
-
-        Args:
-            df: 原始DataFrame
-            case: 大小写转换 ('upper', 'lower', 'title', None)
-            prefix: 添加前缀
-            strip_special: 去除特殊字符（仅保留字母数字下划线中文）
-            dedupe: 列名去重（添加_1, _2后缀）
-
-        Returns:
-            pd.DataFrame: 列名清洗后的数据
-        """
-        df = df.copy()
+    def clean_column_name(df: pd.DataFrame, cols: list[str] | None = None) -> pd.DataFrame:
+        target_cols = df.columns if cols is None else cols
         new_cols = []
-        seen = {}
-
         for col in df.columns:
-            name = str(col).strip()
-
-            # 大小写转换
-            if case == "upper":
-                name = name.upper()
-            elif case == "lower":
-                name = name.lower()
-            elif case == "title":
-                name = name.title()
-
-            # 去除特殊字符
-            if strip_special:
-                name = re.sub(r"[^0-9a-zA-Z_\u4e00-\u9fff]+", "_", name).strip("_")
-
-            # 添加前缀
-            if prefix:
-                name = f"{prefix}{name}"
-
-            # 去重
-            if dedupe:
-                count = seen.get(name, 0)
-                if count > 0:
-                    name = f"{name}_{count}"
-                seen[name] = count + 1
-
-            new_cols.append(name)
-
+            if col in target_cols:
+                new_col = col.strip()
+                new_col = new_col.replace(' ', '_')
+                new_col = new_col.upper()
+                new_cols.append(new_col)
+            else:
+                new_cols.append(col)
         df.columns = new_cols
+
         return df
 
     @staticmethod
@@ -125,140 +85,113 @@ class CSVCleaner:
         return df.drop_duplicates(subset=subset, keep=keep).reset_index(drop=True)
 
     @staticmethod
-    def normalize_percent(
-        df: pd.DataFrame,
-        percent_cols: Optional[List[str]] = None,
-        auto_detect: bool = True
-    ) -> pd.DataFrame:
-        """
-        百分比标准化（转为小数）
+    def formatting(df: pd.DataFrame, mapping: list[dict]) -> pd.DataFrame:
+        for m in mapping:
+            cols = m.get('Column', [])
+            trans_type = m.get('trans_type', None)
 
-        Args:
-            df: 原始DataFrame
-            percent_cols: 指定的百分比列
-            auto_detect: 是否自动检测包含"率"、"比"、"%"的列
+            if trans_type == 'str':
+                for col in cols:
+                    if col in df.columns:
+                        df[col] = df[col].astype(str)
+                        df[col] = df[col].str.upper()
+                        df[col] = df[col].str.strip()
+                        df[col] = df[col].str.replace(" ", "_")
 
-        Returns:
-            pd.DataFrame: 处理后的数据
-        """
-        df = df.copy()
+            elif trans_type == 'int':
+                for col in cols:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
 
-        if auto_detect and percent_cols is None:
-            percent_cols = [
-                c for c in df.columns
-                if any(k in str(c) for k in ["率", "比", "%"])
-            ]
+            elif trans_type == 'float':
+                for col in cols:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors="coerce").round(4)
 
-        if not percent_cols:
-            return df
+            elif trans_type == 'bool':
+                for col in cols:
+                    if col in df.columns:
+                        df[col] = df[col].astype("boolean")
 
-        def convert(x):
-            if pd.isna(x):
-                return x
-            if isinstance(x, str) and x.endswith("%"):
-                try:
-                    return float(x.strip("%")) / 100
-                except:
-                    return None
-            try:
-                val = float(x)
-                return val / 100 if val > 1 else val
-            except:
-                return None
+            elif trans_type == 'percent':
+                for col in cols:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors="coerce") * 100
+                        df[col] = df[col].round(2)
+                        df[col] = df[col].apply(lambda x: f"{x}%" if pd.notna(x) else pd.NA)
 
-        for col in percent_cols:
-            if col in df.columns:
-                df[col] = df[col].apply(convert)
+            elif trans_type == 'date':
+                date_format = m.get("format", "YYYY-MM-DD")
 
+                from dateutil import parser
+                def parse_date(val):
+                    try:
+                        return parser.parse(str(val), dayfirst=False, yearfirst=False)
+                    except Exception:
+                        return pd.NaT
+
+                for col in cols:
+                    if col in df.columns:
+                        df[col] = df[col].apply(parse_date)
+
+                        if date_format == "YYYY-MM-DD":
+                            df[col] = df[col].dt.strftime("%Y-%m-%d")
+                        elif date_format == "DD_MM_YY":
+                            df[col] = df[col].dt.strftime("%d-%m-%y")
+                        elif date_format == "MM-YY":
+                            df[col] = df[col].dt.strftime("%m-%y")
+
+            elif trans_type == "scale":
+                factor = m.get("factor", 1)
+                operation = m.get("operation", "mul")
+                for col in cols:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors="coerce")  # 转数值
+                        if operation == "mul":
+                            df[col] = df[col] * factor
+                        elif operation == "div":
+                            df[col] = df[col] / factor
+                        elif operation == "add":
+                            df[col] = df[col] + factor
+                        elif operation == "sub":
+                            df[col] = df[col] - factor
+
+
+            elif trans_type == 'missing':
+                strategy = m.get("strategy", None)
+                for col in cols:
+                    if col in df.columns:
+                        if strategy == "mean":
+                            df[col] = df[col].fillna(df[col].mean())
+                        elif strategy == "median":
+                            df[col] = df[col].fillna(df[col].median())
+                        elif strategy == "nan":
+                            df[col] = df[col].fillna(pd.NA)
+
+            elif trans_type == "outlier":
+                method = m.get("method", "zscore")
+                replace = m.get("replace", "nan")
+                threshold = m.get("threshold", 3)
+                for col in cols:
+                    if col in df.columns:
+                        series = df[col]
+                        if method == "zscore":
+                            mean, std = series.mean(), series.std()
+                            mask = abs(series - mean) > threshold * std
+                        elif method == "iqr":
+                            q1, q3 = series.quantile([0.25, 0.75])
+                            iqr = q3 - q1
+                            mask = (series < q1 - threshold * iqr) | (series > q3 + threshold * iqr)
+
+                        if replace == "mean":
+                            df.loc[mask, col] = mean
+                        elif replace == "median":
+                            df.loc[mask, col] = series.median()
+                        elif replace == "nan":
+                            df.loc[mask, col] = pd.NA
+
+        df = df.astype(object).where(df.notna(), float("nan"))
         return df
-
-    @staticmethod
-    def normalize_dates(
-        df: pd.DataFrame,
-        date_cols: Optional[List[str]] = None,
-        date_format: str = "%Y-%m-%d"
-    ) -> pd.DataFrame:
-        """
-        日期标准化
-
-        Args:
-            df: 原始DataFrame
-            date_cols: 日期列列表（None表示尝试所有列）
-            date_format: 目标日期格式
-
-        Returns:
-            pd.DataFrame: 处理后的数据
-        """
-        df = df.copy()
-        cols_to_process = date_cols if date_cols else df.columns
-
-        for col in cols_to_process:
-            if col not in df.columns:
-                continue
-
-            def convert(x):
-                if pd.isna(x):
-                    return x
-                try:
-                    return pd.to_datetime(x, errors="raise").strftime(date_format)
-                except Exception:
-                    return x
-
-            df[col] = df[col].apply(convert)
-
-        return df
-
-    @staticmethod
-    def handle_outliers(
-        df: pd.DataFrame,
-        method: str = "zscore",
-        threshold: float = 3.0,
-        replace_with: str = "median",
-        mark_only: bool = False
-    ) -> pd.DataFrame:
-        """
-        异常值处理
-
-        Args:
-            df: 原始DataFrame
-            method: 检测方法 ('zscore' 或 'iqr')
-            threshold: Z-score阈值（默认3.0）或IQR倍数（默认1.5）
-            replace_with: 替换策略 ('mean', 'median', 'nan')
-            mark_only: 仅标记不替换（添加_outlier列）
-
-        Returns:
-            pd.DataFrame: 处理后的数据
-        """
-        df = df.copy()
-        num_cols = df.select_dtypes(include=[np.number]).columns
-
-        for col in num_cols:
-            # 检测异常值
-            if method == "zscore":
-                mean, std = df[col].mean(), df[col].std()
-                is_outlier = (df[col] - mean).abs() > threshold * std
-            elif method == "iqr":
-                q1, q3 = df[col].quantile([0.25, 0.75])
-                iqr = q3 - q1
-                lower, upper = q1 - threshold * iqr, q3 + threshold * iqr
-                is_outlier = (df[col] < lower) | (df[col] > upper)
-            else:
-                continue
-
-            # 标记异常值
-            if mark_only:
-                df[f"{col}_outlier"] = is_outlier.astype(int)
-            else:
-                # 替换异常值
-                if replace_with == "mean":
-                    df.loc[is_outlier, col] = df[col].mean()
-                elif replace_with == "median":
-                    df.loc[is_outlier, col] = df[col].median()
-                elif replace_with == "nan":
-                    df.loc[is_outlier, col] = np.nan
-
-        return df
-
 
 # 全局清洗器实例
 csv_cleaner = CSVCleaner()

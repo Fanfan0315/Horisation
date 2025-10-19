@@ -8,6 +8,9 @@ from typing import Optional, Tuple, Dict, List
 import pandas as pd
 import numpy as np
 import re
+from openpyxl import load_workbook
+from openpyxl.styles import PatternFill
+
 
 # 依赖检查
 _USE_PYARROW = False
@@ -281,6 +284,93 @@ class CSVProcessor:
                 dtypes[col] = 'text'
 
         return dtypes
+
+    def diff_highlight(df1: pd.DataFrame, df2: pd.DataFrame, mapping: list[dict]) -> None:
+        for m in mapping:
+            suffix1 = m.get('suffix1', '')
+            suffix2 = m.get('suffix2', '')
+            out_file = m.get('out_file', '')
+
+            df1_renamed = df1.add_suffix(f"_{suffix1}") if suffix1 else df1.copy()
+            df2_renamed = df2.add_suffix(f"_{suffix2}") if suffix2 else df2.copy()
+
+            merged = pd.DataFrame()
+            for col in df1.columns:
+                merged[f"{col}_{suffix1}" if suffix1 else col] = df1[col]
+                merged[f"{col}_{suffix2}" if suffix2 else col] = df2[col]
+            merged.to_excel(out_file, index=False)
+
+            wb = load_workbook(out_file)
+            ws = wb.active
+
+            fill_up = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+            fill_down = PatternFill(start_color="00FF00", end_color="00FF00", fill_type="solid")
+
+            for j, col in enumerate(df1.columns):
+                col1 = 2 * j + 1
+                col2 = 2 * j + 2
+
+                for i in range(len(df1)):
+                    val1 = df1.iloc[i, j]
+                    val2 = df2.iloc[i, j]
+
+                    if pd.notna(val1) and pd.notna(val2) and val1 != val2:
+                        cell = ws.cell(row=i + 2, column=col2)
+                        if val2 > val1:
+                            cell.fill = fill_up
+                        else:
+                            cell.fill = fill_down
+
+            wb.save(out_file)
+
+    def write_diff_report(df1: pd.DataFrame, df2: pd.DataFrame, mapping: list[dict]) -> None:
+        for m in mapping:
+            sheet_suffix1 = m.get('sheet_suffix1', '_1')
+            sheet_suffix2 = m.get('sheet_suffix2', '_2')
+            out_file = m.get('out_file', '')
+
+        with pd.ExcelWriter(out_file, engine="openpyxl") as writer:
+            df1.to_excel(writer, sheet_name=f"DataFrame_{sheet_suffix1}", index=False)
+            df2.to_excel(writer, sheet_name=f"DataFrame_{sheet_suffix2}", index=False)
+
+        wb = load_workbook(out_file)
+        ws2 = wb[f"DataFrame_{sheet_suffix2}"]
+
+        fill_up = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+        fill_down = PatternFill(start_color="00FF00", end_color="00FF00", fill_type="solid")
+
+        diffs = []
+        common_cols = [col for col in df1.columns if col in df2.columns]
+
+        for col in common_cols:
+            col_idx = df2.columns.get_loc(col) + 1
+            for r in range(len(df1)):
+                val1 = df1.iloc[r][col]
+                val2 = df2.iloc[r][col]
+
+                if pd.notna(val1) and pd.notna(val2) and val1 != val2:
+                    row_idx = r + 2
+                    if val2 > val1:
+                        ws2.cell(row=row_idx, column=col_idx).fill = fill_up
+                        change = "Up"
+                    else:
+                        ws2.cell(row=row_idx, column=col_idx).fill = fill_down
+                        change = "Down"
+
+                    diffs.append({
+                        "Row": row_idx,
+                        "Column": col,
+                        f"Old{sheet_suffix1}": val1,
+                        f"New{sheet_suffix2}": val2,
+                        "Change": change
+                    })
+
+        wb.save(out_file)
+
+        if diffs:
+            df_diff = pd.DataFrame(diffs)
+            with pd.ExcelWriter(out_file, engine="openpyxl", mode="a") as writer:
+                df_diff.to_excel(writer, sheet_name="Diff Summary", index=False)
 
 
 # 全局处理器实例
