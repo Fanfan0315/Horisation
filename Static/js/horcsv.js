@@ -50,7 +50,7 @@
     statusEl.appendChild(badge);
   }
 
-function setDiffStatus(msg, type = 'info') {
+  function setDiffStatus(msg, type = 'info') {
     if (!diffStatusEl) return;
     diffStatusEl.innerHTML = '';
     if (!msg) return;
@@ -393,7 +393,7 @@ function setDiffStatus(msg, type = 'info') {
     });
   }
 
-    // diff 文件选择
+  // diff 文件选择
   if (diffFile1Input) {
     diffFile1Input.addEventListener('change', () => {
       const file = diffFile1Input.files?.[0];
@@ -407,7 +407,6 @@ function setDiffStatus(msg, type = 'info') {
       updateFileBadge(diffFile2Name, file);
     });
   }
-
 
   // 构建查询参数
   function buildQueryParams() {

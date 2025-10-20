@@ -14,11 +14,11 @@ class CSVCleaner:
 
     @staticmethod
     def clean_column_names(
-            df: pd.DataFrame,
-            cols: list[str] | None = None,
-            *,
-            case: str | None = "upper",
-            strip_special: bool = True
+        df: pd.DataFrame,
+        cols: list[str] | None = None,
+        *,
+        case: str | None = "upper",
+        strip_special: bool = True
     ) -> pd.DataFrame:
         """标准化列名.
 
@@ -65,9 +65,9 @@ class CSVCleaner:
 
     @staticmethod
     def clean_column_name(
-            df: pd.DataFrame,
-            cols: list[str] | None = None,
-            **kwargs: Any
+        df: pd.DataFrame,
+        cols: list[str] | None = None,
+        **kwargs: Any
     ) -> pd.DataFrame:
         """保持兼容的旧接口, 默认转为大写并替换空格。
 
