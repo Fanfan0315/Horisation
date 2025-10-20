@@ -4,9 +4,13 @@ CSV API 控制器 - 只负责路由和请求处理
 业务逻辑已移至 Backend/Functions 模块
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 import os
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
+import json
+import pandas as pd
+import re
+from pathlib import Path
 
 # 导入核心功能模块
 from Backend.Functions.csv_processor import csv_processor
@@ -49,6 +53,48 @@ def _get_file_and_bytes() -> Tuple[Optional[str], Optional[bytes], Optional[Tupl
 
     data = f.read()
     return f.filename, data, None
+
+def _parse_mapping(default_prefix: str, required: bool = False):
+    raw = request.form.get('mapping') or request.args.get('mapping')
+
+    if raw is None:
+        json_payload = request.get_json(silent=True) or {}
+        raw = json_payload.get('mapping')
+
+    if raw in (None, ""):
+        if required:
+            return None, ('mapping is required', 400)
+        return [], None
+
+    if isinstance(raw, str):
+        try:
+            mapping = json.loads(raw)
+        except json.JSONDecodeError:
+            return None, ('invalid mapping json', 400)
+    else:
+        mapping = raw
+
+    if not isinstance(mapping, list):
+        return None, ('mapping must be a list', 400)
+
+    final = []
+    for idx, item in enumerate(mapping):
+        if not isinstance(item, dict):
+            return None, ('mapping items must be objects', 400)
+        entry = dict(item)
+        entry.setdefault('out_file', f"{default_prefix}_{idx + 1}.xlsx")
+        final.append(entry)
+
+    return final, None
+
+def _read_diff_frame(data: bytes, filename: str, sep: Optional[str] = None, encoding: Optional[str] = None):
+    df = csv_processor.read_file_to_dataframe(
+        data,
+        filename=filename,
+        sep=sep,
+        encoding=encoding
+    )
+    return df.apply(pd.to_numeric, errors='ignore')
 
 
 # ==================== API 路由 ====================
@@ -182,7 +228,7 @@ def api_clean():
         original_rows = len(df)
 
         # 清洗列名
-        df = csv_cleaner.clean_column_names(df, case=case, strip_special=strip_special)
+        df = csv_cleaner.clean_column_name(df, case=case, strip_special=strip_special)
 
         # 清洗单元格
         df = csv_cleaner.clean_cell_values(df)
@@ -202,3 +248,126 @@ def api_clean():
         })
     except Exception as e:
         return jsonify({'ok': False, 'error': f'clean failed: {e}'}), 400
+
+
+@bp.post("/api/csv/format")
+def api_format():
+    filename, data, err = _get_file_and_bytes()
+    if err:
+        msg, code = err
+        return jsonify({'ok': False, 'error': msg}), code
+
+    mapping, err = _parse_mapping(Path(filename).stem if filename else 'formatted')
+    if err:
+        msg, code = err
+        return jsonify({'ok': False, 'error': msg}), code
+
+    sep = request.args.get('sep') or request.form.get('sep')
+    encoding = request.args.get('encoding') or request.form.get('encoding')
+
+    try:
+        df = csv_processor.read_file_to_dataframe(
+            data,
+            filename=filename,
+            sep=sep,
+            encoding=encoding
+        )
+
+        if mapping:
+            df = csv_cleaner.formatting(df, mapping)
+
+        preview = df.head(min(len(df), 500))
+
+        return jsonify({
+            'ok': True,
+            'filename': filename,
+            'total_rows': int(len(df)),
+            'columns': list(df.columns),
+            'rows': preview.to_dict(orient='records')
+        })
+    except ImportError as e:
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'ok': False, 'error': f'format failed: {e}'}), 400
+
+
+@bp.post("/api/csv/diff_highlight")
+def api_diff_highlight():
+    file1 = request.files.get('file1')
+    file2 = request.files.get('file2')
+
+    if not file1 or not file1.filename:
+        return jsonify({'ok': False, 'error': 'file1 is required'}), 400
+    if not file2 or not file2.filename:
+        return jsonify({'ok': False, 'error': 'file2 is required'}), 400
+
+    mapping, err = _parse_mapping('diff_highlight', required=True)
+    if err:
+        msg, code = err
+        return jsonify({'ok': False, 'error': msg}), code
+
+    sep1 = request.args.get('sep1') or request.form.get('sep1')
+    sep2 = request.args.get('sep2') or request.form.get('sep2')
+    encoding1 = request.args.get('encoding1') or request.form.get('encoding1')
+    encoding2 = request.args.get('encoding2') or request.form.get('encoding2')
+
+    try:
+        data1 = file1.read()
+        data2 = file2.read()
+
+        df1 = _read_diff_frame(data1, file1.filename, sep=sep1, encoding=encoding1)
+        df2 = _read_diff_frame(data2, file2.filename, sep=sep2, encoding=encoding2)
+
+        if df1.shape != df2.shape:
+            return jsonify({'ok': False, 'error': 'files must have the same shape'}), 400
+        if list(df1.columns) != list(df2.columns):
+            return jsonify({'ok': False, 'error': 'files must share the same columns'}), 400
+
+        csv_processor.diff_highlight(df1, df2, mapping)
+
+        return jsonify({'ok': True, 'created_files': [m['out_file'] for m in mapping]})
+    except ImportError as e:
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'ok': False, 'error': f'diff highlight failed: {e}'}), 400
+
+
+@bp.post("/api/csv/diff_report")
+def api_diff_report():
+    file1 = request.files.get('file1')
+    file2 = request.files.get('file2')
+
+    if not file1 or not file1.filename:
+        return jsonify({'ok': False, 'error': 'file1 is required'}), 400
+    if not file2 or not file2.filename:
+        return jsonify({'ok': False, 'error': 'file2 is required'}), 400
+
+    mapping, err = _parse_mapping('diff_report', required=True)
+    if err:
+        msg, code = err
+        return jsonify({'ok': False, 'error': msg}), code
+
+    sep1 = request.args.get('sep1') or request.form.get('sep1')
+    sep2 = request.args.get('sep2') or request.form.get('sep2')
+    encoding1 = request.args.get('encoding1') or request.form.get('encoding1')
+    encoding2 = request.args.get('encoding2') or request.form.get('encoding2')
+
+    try:
+        data1 = file1.read()
+        data2 = file2.read()
+
+        df1 = _read_diff_frame(data1, file1.filename, sep=sep1, encoding=encoding1)
+        df2 = _read_diff_frame(data2, file2.filename, sep=sep2, encoding=encoding2)
+
+        if df1.shape != df2.shape:
+            return jsonify({'ok': False, 'error': 'files must have the same shape'}), 400
+        if list(df1.columns) != list(df2.columns):
+            return jsonify({'ok': False, 'error': 'files must share the same columns'}), 400
+
+        csv_processor.write_diff_report(df1, df2, mapping)
+
+        return jsonify({'ok': True, 'created_files': [m['out_file'] for m in mapping]})
+    except ImportError as e:
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'ok': False, 'error': f'diff report failed: {e}'}), 400
