@@ -13,20 +13,72 @@ class CSVCleaner:
     """CSV数据清洗器"""
 
     @staticmethod
-    def clean_column_name(df: pd.DataFrame, cols: list[str] | None = None) -> pd.DataFrame:
-        target_cols = df.columns if cols is None else cols
-        new_cols = []
-        for col in df.columns:
-            if col in target_cols:
-                new_col = col.strip()
-                new_col = new_col.replace(' ', '_')
-                new_col = new_col.upper()
-                new_cols.append(new_col)
-            else:
-                new_cols.append(col)
-        df.columns = new_cols
+    def clean_column_names(
+        df: pd.DataFrame,
+        cols: list[str] | None = None,
+        *,
+        case: str | None = "upper",
+        strip_special: bool = True
+    ) -> pd.DataFrame:
+        """标准化列名.
 
+        Args:
+            df: 待处理的数据框。
+            cols: 需要处理的列名列表, ``None`` 表示全部列。
+            case: 大小写控制, 支持 ``upper``/``lower``/``title``/``None``。
+            strip_special: 是否移除除 ``_`` 以外的特殊字符。
+
+        Returns:
+            ``pd.DataFrame``: 列名规范化后的数据框, 返回副本避免原地修改。
+        """
+
+        df = df.copy()
+        target_cols = set(df.columns if cols is None else cols)
+        normalised = []
+
+        for original in df.columns:
+            if original not in target_cols:
+                normalised.append(original)
+                continue
+
+            if not isinstance(original, str):
+                normalised.append(original)
+                continue
+
+            col = original.strip()
+            col = re.sub(r"\s+", "_", col)
+            if strip_special:
+                col = re.sub(r"[^0-9a-zA-Z_]+", "", col)
+
+            case_value = (case or "").lower()
+            if case_value == "upper":
+                col = col.upper()
+            elif case_value == "lower":
+                col = col.lower()
+            elif case_value == "title":
+                col = "_".join(part.capitalize() for part in col.split("_"))
+
+            normalised.append(col)
+
+        df.columns = normalised
         return df
+
+    @staticmethod
+    def clean_column_name(
+        df: pd.DataFrame,
+        cols: list[str] | None = None,
+        **kwargs: Any
+    ) -> pd.DataFrame:
+        """保持兼容的旧接口, 默认转为大写并替换空格。
+
+        旧的调用方可能会额外传入 ``case``、``strip_special`` 等关键字参数,
+        因此这里透传给 ``clean_column_names`` 以避免 ``TypeError``。
+        """
+
+        if "case" not in kwargs:
+            kwargs["case"] = "upper"
+
+        return CSVCleaner.clean_column_names(df, cols=cols, **kwargs)
 
     @staticmethod
     def clean_cell_values(

@@ -50,6 +50,42 @@
     font-size: 0.875rem;
   }
 
+  .control-item textarea {
+    width: 100%;
+    min-height: 140px;
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-family: "SFMono-Regular", "Menlo", "Consolas", "Liberation Mono", monospace;
+    line-height: 1.5;
+    resize: vertical;
+  }
+
+  .control-item.full-width {
+    grid-column: 1 / -1;
+  }
+
+  .panel-section {
+    margin-top: 1.75rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .panel-section:first-of-type {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
   /* 按钮组 */
   .action-buttons {
     display: flex;
@@ -75,6 +111,52 @@
   .btn-secondary:hover { background: #059669; transform: translateY(-1px); }
   .btn-outline { background: white; color: #6b7280; border: 1px solid #d1d5db; }
   .btn-outline:hover { background: #f3f4f6; }
+  .btn-warning { background: #f59e0b; color: white; }
+  .btn-warning:hover { background: #d97706; transform: translateY(-1px); }
+  .btn-danger { background: #ef4444; color: white; }
+  .btn-danger:hover { background: #dc2626; transform: translateY(-1px); }
+
+  .btn-group-inline {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .helper-text {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-top: 0.5rem;
+    line-height: 1.4;
+  }
+
+  .diff-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+  }
+
+  .file-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 0.75rem;
+    margin-top: 0.5rem;
+  }
+
+  .diff-status { margin-top: 1rem; }
+
+  .created-files {
+    margin-top: 0.75rem;
+    padding-left: 1.25rem;
+    color: #1f2937;
+    font-size: 0.875rem;
+  }
+
+  .created-files li { margin: 0.25rem 0; }
 
   /* 结果展示区 */
   .result-section { background: #fff; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
@@ -220,52 +302,142 @@
     <!-- 控制面板 -->
     <div class="control-panel">
       <h3><i class="fas fa-sliders-h"></i> 选项配置</h3>
-      <div class="control-grid">
-        <div class="control-item">
-          <label for="encodingSelect">编码 / Encoding</label>
-          <select id="encodingSelect">
-            <option value="">自动检测</option>
-            <option value="utf-8">UTF-8</option>
-            <option value="utf-8-sig">UTF-8 BOM</option>
-            <option value="gbk">GBK</option>
-            <option value="gb2312">GB2312</option>
-            <option value="big5">Big5</option>
-          </select>
+      <div class="panel-section">
+        <div class="control-grid">
+          <div class="control-item">
+            <label for="encodingSelect">编码 / Encoding</label>
+            <select id="encodingSelect">
+              <option value="">自动检测</option>
+              <option value="utf-8">UTF-8</option>
+              <option value="utf-8-sig">UTF-8 BOM</option>
+              <option value="gbk">GBK</option>
+              <option value="gb2312">GB2312</option>
+              <option value="big5">Big5</option>
+            </select>
+          </div>
+
+          <div class="control-item">
+            <label for="separatorInput">分隔符 / Separator</label>
+            <input id="separatorInput" type="text" value="," placeholder=", 或 ;">
+          </div>
+
+          <div class="control-item">
+            <label for="rowsN">预览行数</label>
+            <input id="rowsN" type="number" min="1" max="2000" value="10">
+          </div>
+
+          <div class="control-item">
+            <label for="caseSelect">列名大小写</label>
+            <select id="caseSelect">
+              <option value="upper">大写 (UPPER)</option>
+              <option value="lower">小写 (lower)</option>
+              <option value="title">标题 (Title)</option>
+            </select>
+          </div>
         </div>
 
-        <div class="control-item">
-          <label for="separatorInput">分隔符 / Separator</label>
-          <input id="separatorInput" type="text" value="," placeholder=", 或 ;">
+        <div class="action-buttons">
+          <button id="btnPreview" class="btn btn-primary">
+            <i class="fas fa-eye"></i> 预览数据
+          </button>
+          <button id="btnSummary" class="btn btn-secondary">
+            <i class="fas fa-chart-bar"></i> 数据概要
+          </button>
+          <button id="btnClean" class="btn btn-outline">
+            <i class="fas fa-broom"></i> 清洗数据
+          </button>
         </div>
 
-        <div class="control-item">
-          <label for="rowsN">预览行数</label>
-          <input id="rowsN" type="number" min="1" max="2000" value="10">
-        </div>
+        <div id="statusMessage" style="margin-top: 1rem;"></div>
+      </div>
 
-        <div class="control-item">
-          <label for="caseSelect">列名大小写</label>
-          <select id="caseSelect">
-            <option value="upper">大写 (UPPER)</option>
-            <option value="lower">小写 (lower)</option>
-            <option value="title">标题 (Title)</option>
-          </select>
+      <div class="panel-section">
+        <div class="section-header">
+          <h4 style="margin: 0;"><i class="fas fa-magic"></i> 格式化 (Format)</h4>
+          <div class="btn-group-inline">
+            <button id="btnFormat" class="btn btn-secondary">
+              <i class="fas fa-wand-magic-sparkles"></i> 应用格式化
+            </button>
+          </div>
+        </div>
+        <div class="control-item full-width">
+          <label for="formatMappingInput">格式化映射配置（JSON 数组）</label>
+          <textarea id="formatMappingInput" placeholder='例如: \n[\n  {"Column": ["Amount"], "trans_type": "float"},\n  {"Column": ["OrderDate"], "trans_type": "date", "format": "YYYY-MM-DD"}\n]'></textarea>
+          <div class="helper-text">每个对象描述一组列的转换规则，留空则仅返回原始文件的格式化预览（最多 500 行）。</div>
         </div>
       </div>
 
-      <div class="action-buttons">
-        <button id="btnPreview" class="btn btn-primary">
-          <i class="fas fa-eye"></i> 预览数据
-        </button>
-        <button id="btnSummary" class="btn btn-secondary">
-          <i class="fas fa-chart-bar"></i> 数据概要
-        </button>
-        <button id="btnClean" class="btn btn-outline">
-          <i class="fas fa-broom"></i> 清洗数据
-        </button>
-      </div>
+      <div class="panel-section">
+        <div class="section-header">
+          <h4 style="margin: 0;"><i class="fas fa-code-branch"></i> 差异对比 (Diff)</h4>
+        </div>
 
-      <div id="statusMessage" style="margin-top: 1rem;"></div>
+        <div class="diff-grid">
+          <div class="control-item">
+            <label for="diffFile1Input">基准文件 File 1</label>
+            <input id="diffFile1Input" type="file" accept=".csv,.xls,.xlsx">
+            <div id="diffFile1Name" class="file-pill" style="display: none;"><i class="fas fa-file"></i><span></span></div>
+          </div>
+
+          <div class="control-item">
+            <label for="diffFile2Input">对比文件 File 2</label>
+            <input id="diffFile2Input" type="file" accept=".csv,.xls,.xlsx">
+            <div id="diffFile2Name" class="file-pill" style="display: none;"><i class="fas fa-file"></i><span></span></div>
+          </div>
+
+          <div class="control-item">
+            <label for="diffEncoding1">编码 (File 1)</label>
+            <select id="diffEncoding1">
+              <option value="">自动检测</option>
+              <option value="utf-8">UTF-8</option>
+              <option value="utf-8-sig">UTF-8 BOM</option>
+              <option value="gbk">GBK</option>
+              <option value="gb2312">GB2312</option>
+              <option value="big5">Big5</option>
+            </select>
+          </div>
+
+          <div class="control-item">
+            <label for="diffEncoding2">编码 (File 2)</label>
+            <select id="diffEncoding2">
+              <option value="">自动检测</option>
+              <option value="utf-8">UTF-8</option>
+              <option value="utf-8-sig">UTF-8 BOM</option>
+              <option value="gbk">GBK</option>
+              <option value="gb2312">GB2312</option>
+              <option value="big5">Big5</option>
+            </select>
+          </div>
+
+          <div class="control-item">
+            <label for="diffSeparator1">分隔符 (File 1)</label>
+            <input id="diffSeparator1" type="text" placeholder=", 或 ;">
+          </div>
+
+          <div class="control-item">
+            <label for="diffSeparator2">分隔符 (File 2)</label>
+            <input id="diffSeparator2" type="text" placeholder=", 或 ;">
+          </div>
+        </div>
+
+        <div class="control-item full-width" style="margin-top: 1rem;">
+          <label for="diffMappingInput">差异映射配置（必填，JSON 数组）</label>
+          <textarea id="diffMappingInput" placeholder='例如: \n[\n  {"out_file": "diff_highlight.xlsx", "suffix1": "old", "suffix2": "new"},\n  {"out_file": "diff_report.xlsx", "sheet_suffix1": "_old", "sheet_suffix2": "_new"}\n]'></textarea>
+          <div class="helper-text">至少提供一个映射对象，用于指定输出文件名、sheet 后缀、列后缀等。缺省的 <code>out_file</code> 会自动生成。</div>
+        </div>
+
+        <div class="action-buttons">
+          <button id="btnDiffHighlight" class="btn btn-warning">
+            <i class="fas fa-highlighter"></i> 生成高亮差异
+          </button>
+          <button id="btnDiffReport" class="btn btn-danger">
+            <i class="fas fa-file-excel"></i> 生成差异报告
+          </button>
+        </div>
+
+        <div id="diffStatus" class="diff-status"></div>
+        <ul id="diffCreatedFiles" class="created-files"></ul>
+      </div>
     </div>
 
     <!-- 结果展示区 -->
