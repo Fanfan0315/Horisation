@@ -89,6 +89,61 @@
     }
   }
 
+  function stripBom(text) {
+    return text.replace(/^\ufeff/, '');
+  }
+
+  function normalizeSmartPunctuation(text) {
+    return text
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\uFF0C\u3001]/g, ',')
+      .replace(/[\uFF1A]/g, ':');
+  }
+
+  function clampJsonEnvelope(text) {
+    const startIdx = text.search(/[\[{]/);
+    if (startIdx > 0) {
+      text = text.slice(startIdx);
+    }
+
+    const lastArray = text.lastIndexOf(']');
+    const lastObject = text.lastIndexOf('}');
+    const endIdx = Math.max(lastArray, lastObject);
+    if (endIdx >= 0 && endIdx < text.length - 1) {
+      text = text.slice(0, endIdx + 1);
+    }
+
+    return text;
+  }
+
+  function buildMappingCandidates(text) {
+    const candidates = [];
+    const trimmed = clampJsonEnvelope(normalizeSmartPunctuation(stripBom(text.trim())));
+
+    if (text) {
+      candidates.push(text);
+    }
+
+    if (trimmed) {
+      candidates.push(trimmed);
+
+      const loweredBool = trimmed
+        .replace(/\bTrue\b/g, 'true')
+        .replace(/\bFalse\b/g, 'false')
+        .replace(/\bNone\b/g, 'null');
+      if (loweredBool !== trimmed) {
+        candidates.push(loweredBool);
+      }
+
+      if (!trimmed.includes('"') && trimmed.includes("'")) {
+        candidates.push(trimmed.replace(/'/g, '"'));
+      }
+    }
+
+    return [...new Set(candidates.filter(Boolean))];
+  }
+
   function getMappingPayload(inputEl, { required = false } = {}) {
     if (!inputEl) {
       if (required) {
@@ -97,15 +152,33 @@
       return '';
     }
 
-    const text = (inputEl.value || '').trim();
+    const text = inputEl.value || '';
     if (!text) {
       if (required) {
         throw new Error('请提供映射配置（JSON 数组）');
       }
       return '';
     }
-    return text;
+
+    let lastError = null;
+    const candidates = buildMappingCandidates(text);
+
+    for (const candidate of candidates) {
+      try {
+        const parsed = JSON.parse(candidate);
+        if (!Array.isArray(parsed)) {
+          throw new Error('映射配置必须是数组');
+        }
+        return JSON.stringify(parsed);
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    const message = lastError?.message || '未知错误';
+    throw new Error(`映射配置 JSON 无效：${message}`);
   }
+
 
   function clearTable() {
     if (previewTable) previewTable.innerHTML = '';
@@ -121,7 +194,7 @@
     }
   }
 
-  async function parseJsonResponse(resp) {
+    async function parseJsonResponse(resp) {
     const contentType = resp.headers?.get?.('content-type') || '';
 
     if (contentType.includes('application/json')) {
@@ -526,11 +599,10 @@
 
       const resp = await fetch('/api/csv/format', {
         method: 'POST',
-        body: fd,
-        credentials: 'include'
+        body: fd
       });
 
-      const data = await parseJsonResponse(resp);
+      const data = await resp.json();
 
       if (!resp.ok || !data.ok) {
         throw new Error(data.error || `HTTP ${resp.status}`);
@@ -596,11 +668,10 @@
 
       const resp = await fetch(endpoint, {
         method: 'POST',
-        body: fd,
-        credentials: 'include'
+        body: fd
       });
 
-      const data = await parseJsonResponse(resp);
+      const data = await resp.json();
 
       if (!resp.ok || !data.ok) {
         throw new Error(data.error || `HTTP ${resp.status}`);
@@ -620,6 +691,7 @@
 
   btnDiffHighlight?.addEventListener('click', () => handleDiffRequest('/api/csv/diff-highlight'));
   btnDiffReport?.addEventListener('click', () => handleDiffRequest('/api/csv/diff-report'));
+
 
   console.log('✅ CSV 工作区已初始化');
 })();
