@@ -202,14 +202,32 @@ function setDiffStatus(msg, type = 'info') {
     }
 
     const text = await resp.text();
+    const trimmed = (text || '').trim();
+    const looksHtml = /^<!doctype html/i.test(trimmed) || /^<html/i.test(trimmed);
 
-    try {
-      return JSON.parse(text);
-    } catch (err) {
-      const message = text?.trim();
+    if (looksHtml) {
+      const hint = resp.status === 404
+        ? '请确认接口地址是否正确'
+        : '请确认已登录并检查服务器日志';
       return {
         ok: false,
-        error: message || `HTTP ${resp.status}`
+        error: `服务器返回 HTML 响应 (HTTP ${resp.status})：${hint}`
+      };
+    }
+
+    if (!trimmed) {
+      return {
+        ok: resp.ok,
+        error: `HTTP ${resp.status}`
+      };
+    }
+
+    try {
+      return JSON.parse(trimmed);
+    } catch (err) {
+      return {
+        ok: false,
+        error: trimmed || `HTTP ${resp.status}`
       };
     }
   }
@@ -663,19 +681,43 @@ function setDiffStatus(msg, type = 'info') {
         fd.append('sep2', sep2);
       }
 
+      const payloadEntries = Array.from(fd.entries());
+      const sendRequest = async (url) => {
+        const body = new FormData();
+        payloadEntries.forEach(([key, value]) => body.append(key, value));
+        const resp = await fetch(url, {
+          method: 'POST',
+          body
+        });
+        const data = await parseJsonResponse(resp);
+        return { resp, data };
+      };
+
+
       setDiffStatus('生成差异中，请稍候...', 'info');
       if (btnDiffHighlight) btnDiffHighlight.disabled = true;
       if (btnDiffReport) btnDiffReport.disabled = true;
 
-      const resp = await fetch(endpoint, {
-        method: 'POST',
-        body: fd
-      });
+      let { resp, data } = await sendRequest(endpoint);
 
-      const data = await resp.json();
+      const fallbackEndpoint = endpoint.includes('-')
+        ? endpoint.replace(/-/g, '_')
+        : endpoint;
 
-      if (!resp.ok || !data.ok) {
-        throw new Error(data.error || `HTTP ${resp.status}`);
+      const needsFallback =
+        resp.status === 404 &&
+        fallbackEndpoint !== endpoint &&
+        (!data?.ok) &&
+        (!data?.error || /not\s+found/i.test(data.error));
+
+      if (needsFallback) {
+        console.warn(`API route ${endpoint} missing, retrying as ${fallbackEndpoint}`);
+        ({ resp, data } = await sendRequest(fallbackEndpoint));
+      }
+
+      if (!resp.ok || !data?.ok) {
+        const message = data?.error || `HTTP ${resp.status}`;
+        throw new Error(message);
       }
 
       const files = data.created_files || [];

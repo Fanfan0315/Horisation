@@ -285,7 +285,7 @@ class CSVProcessor:
 
         return dtypes
 
-    def diff_highlight(df1: pd.DataFrame, df2: pd.DataFrame, mapping: list[dict]) -> None:
+    def diff_highlight(self,df1: pd.DataFrame, df2: pd.DataFrame, mapping: list[dict]) -> None:
         for m in mapping:
             suffix1 = m.get('suffix1', '')
             suffix2 = m.get('suffix2', '')
@@ -323,7 +323,7 @@ class CSVProcessor:
 
             wb.save(out_file)
 
-    def write_diff_report(df1: pd.DataFrame, df2: pd.DataFrame, mapping: list[dict]) -> None:
+    def write_diff_report(self,df1: pd.DataFrame, df2: pd.DataFrame, mapping: list[dict]) -> None:
         for m in mapping:
             sheet_suffix1 = m.get('sheet_suffix1', '_1')
             sheet_suffix2 = m.get('sheet_suffix2', '_2')
