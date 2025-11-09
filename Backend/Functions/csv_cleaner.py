@@ -156,9 +156,10 @@ class CSVCleaner:
                         df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
 
             elif trans_type == 'float':
+                decimals = int(m.get('decimals', 4)) if m.get('decimals') is not None else 4
                 for col in cols:
                     if col in df.columns:
-                        df[col] = pd.to_numeric(df[col], errors="coerce").round(4)
+                        df[col] = pd.to_numeric(df[col], errors="coerce").round(decimals)
 
             elif trans_type == 'bool':
                 for col in cols:
@@ -166,10 +167,11 @@ class CSVCleaner:
                         df[col] = df[col].astype("boolean")
 
             elif trans_type == 'percent':
+                decimals = int(m.get('decimals', 2)) if m.get('decimals') is not None else 2
                 for col in cols:
                     if col in df.columns:
                         df[col] = pd.to_numeric(df[col], errors="coerce") * 100
-                        df[col] = df[col].round(2)
+                        df[col] = df[col].round(decimals)
                         df[col] = df[col].apply(lambda x: f"{x}%" if pd.notna(x) else pd.NA)
 
             elif trans_type == 'date':
@@ -211,12 +213,19 @@ class CSVCleaner:
 
             elif trans_type == 'missing':
                 strategy = m.get("strategy", None)
+                fill_value = m.get("fill_value")
                 for col in cols:
                     if col in df.columns:
                         if strategy == "mean":
                             df[col] = df[col].fillna(df[col].mean())
                         elif strategy == "median":
                             df[col] = df[col].fillna(df[col].median())
+                        elif strategy == "mode":
+                            mode_series = df[col].mode(dropna=True)
+                            if not mode_series.empty:
+                                df[col] = df[col].fillna(mode_series.iloc[0])
+                        elif strategy == "constant":
+                            df[col] = df[col].fillna(fill_value)
                         elif strategy == "nan":
                             df[col] = df[col].fillna(pd.NA)
 
@@ -227,18 +236,28 @@ class CSVCleaner:
                 for col in cols:
                     if col in df.columns:
                         series = df[col]
+                        lower_bound = None
+                        upper_bound = None
                         if method == "zscore":
                             mean, std = series.mean(), series.std()
                             mask = abs(series - mean) > threshold * std
+                            lower_bound = mean - threshold * std
+                            upper_bound = mean + threshold * std
                         elif method == "iqr":
                             q1, q3 = series.quantile([0.25, 0.75])
                             iqr = q3 - q1
                             mask = (series < q1 - threshold * iqr) | (series > q3 + threshold * iqr)
+                            lower_bound = q1 - threshold * iqr
+                            upper_bound = q3 + threshold * iqr
+                            mask = (series < lower_bound) | (series > upper_bound)
 
                         if replace == "mean":
-                            df.loc[mask, col] = mean
+                            df.loc[mask, col] = series.mean()
                         elif replace == "median":
                             df.loc[mask, col] = series.median()
+                        elif replace == "clip":
+                            if lower_bound is not None and upper_bound is not None:
+                                df.loc[mask, col] = series.clip(lower_bound, upper_bound)
                         elif replace == "nan":
                             df.loc[mask, col] = pd.NA
 
