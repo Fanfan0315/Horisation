@@ -7,72 +7,62 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/hormemo.css') }}">
 <style>
   .csv-workspace {
-    display: grid;
-    gap: 1.5rem;
-    margin: 2rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    margin: 2rem 0 3rem;
   }
+
   .workspace-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 1.5rem;
-    padding: 1.5rem 2rem;
-    background: linear-gradient(115deg, rgba(37, 99, 235, 0.08), rgba(14, 165, 233, 0.08));
-    border-radius: 16px;
+    padding: 1.75rem 2rem;
+    border-radius: 18px;
     border: 1px solid rgba(37, 99, 235, 0.18);
+    background: linear-gradient(115deg, rgba(37, 99, 235, 0.08), rgba(14, 165, 233, 0.08));
   }
-
 
   .workspace-meta {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 1.25rem;
   }
 
   .workspace-icon {
-    width: 3rem;
-    height: 3rem;
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 16px;
     display: grid;
     place-items: center;
-    border-radius: 12px;
-    background: #2563eb;
-    color: #fff;
-    font-size: 1.4rem;
+    background: rgba(37, 99, 235, 0.18);
+    color: #1d4ed8;
+    font-weight: 700;
+    letter-spacing: 0.08em;
   }
 
   .workspace-meta h1 {
-    font-size: 1.6rem;
+    margin: 0;
+    font-size: 1.7rem;
     font-weight: 600;
     color: #0f172a;
-    margin: 0;
   }
 
   .workspace-meta p {
-    margin: 0.25rem 0 0;
+    margin: 0.35rem 0 0;
     color: #475569;
-    font-size: 0.95rem;
+    font-size: 0.96rem;
   }
 
   .card {
     background: #fff;
-    border-radius: 16px;
-    box-shadow: 0 18px 45px -22px rgba(15, 23, 42, 0.25);
-    padding: 1.75rem;
+    border-radius: 18px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 24px 60px -34px rgba(15, 23, 42, 0.35);
+    padding: 1.9rem 1.9rem 2.2rem;
   }
 
-  .card h2 {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #111827;
-    margin: 0 0 0.35rem;
-  }
-
-  .section-subtitle {
-    color: #6b7280;
-    margin-bottom: 1.5rem;
-  }
-
-  .upload-card-header {
+  .card-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -81,28 +71,47 @@
     margin-bottom: 1.5rem;
   }
 
-  .upload-layout {
-    display: grid;
-    gap: 1.5rem;
-    grid-template-columns: minmax(260px, 1fr) minmax(280px, 1.1fr);
+  .card-title-group {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
   }
 
-  @media (max-width: 960px) {
-    .upload-layout {
-      grid-template-columns: 1fr;
-    }
+  .card-icon {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 14px;
+    display: grid;
+    place-items: center;
+    font-size: 1.4rem;
+    background: #eff6ff;
+    color: #1d4ed8;
+    box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.18);
+  }
+
+  .card-title {
+    margin: 0;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #111827;
+  }
+
+  .card-subtitle {
+    margin: 0.3rem 0 0;
+    color: #64748b;
+    font-size: 0.92rem;
   }
 
   .upload-dropzone {
     position: relative;
-    border: 2px dashed rgba(37, 99, 235, 0.35);
-    border-radius: 16px;
-    background: #f8fafc;
-    min-height: 220px;
+    border: 2px dashed rgba(37, 99, 235, 0.3);
+    border-radius: 18px;
+    background: #f8fbff;
+    min-height: 230px;
     display: grid;
     place-items: center;
     text-align: center;
-    padding: 2rem 1.5rem;
+    padding: 2.75rem 1.5rem;
     cursor: pointer;
     transition: border-color 0.25s ease, background 0.25s ease, transform 0.2s ease;
   }
@@ -110,68 +119,103 @@
   .upload-dropzone:hover,
   .upload-dropzone.active {
     border-color: #2563eb;
-    background: rgba(37, 99, 235, 0.08);
+    background: rgba(37, 99, 235, 0.1);
     transform: translateY(-1px);
   }
 
+  .upload-dropzone:focus-visible {
+    outline: 3px solid rgba(37, 99, 235, 0.45);
+    outline-offset: 4px;
+  }
+
+  .dropzone-inner {
+    max-width: 420px;
+  }
+
   .dropzone-icon {
-    width: 3.5rem;
-    height: 3.5rem;
+    width: 4rem;
+    height: 4rem;
     border-radius: 50%;
-    background: rgba(37, 99, 235, 0.1);
     display: grid;
     place-items: center;
+    margin: 0 auto 1.1rem;
+    background: rgba(37, 99, 235, 0.12);
     color: #2563eb;
-    font-size: 1.5rem;
-    margin: 0 auto 1rem;
+    font-size: 1.6rem;
   }
 
   .dropzone-title {
-    font-size: 1.05rem;
+    font-size: 1.08rem;
     font-weight: 600;
     color: #0f172a;
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.45rem;
   }
 
   .dropzone-hint {
-    color: #64748b;
-    font-size: 0.9rem;
-    margin-bottom: 0.35rem;
+    margin: 0;
+    color: #475569;
+    font-size: 0.94rem;
   }
 
   .dropzone-limit {
+    margin: 0.5rem 0 0;
     color: #94a3b8;
-    font-size: 0.82rem;
+    font-size: 0.85rem;
   }
 
-  .control-grid {
+  .file-pill {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    margin: 1.15rem 0 0;
+    padding: 0.55rem 0.95rem;
+    border-radius: 999px;
+    background: rgba(37, 99, 235, 0.18);
+    color: #1d4ed8;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .upload-dropzone .file-pill {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .control-item .file-pill {
+    margin-top: 0.75rem;
+  }
+
+  .option-fields {
     display: grid;
     gap: 1rem;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    margin-bottom: 1.75rem;
   }
 
   .control-item label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-weight: 500;
-    color: #374151;
+    display: block;
+    font-weight: 600;
+    color: #1f2937;
+    font-size: 0.9rem;
   }
 
   .control-item input[type="text"],
+  .control-item input[type="number"],
   .control-item select,
   .control-item textarea {
-    margin-top: 0.5rem;
+    margin-top: 0.55rem;
     width: 100%;
     border: 1px solid #d1d5db;
     border-radius: 10px;
     padding: 0.65rem 0.75rem;
     font-size: 0.9rem;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    background: #fff;
   }
 
   .control-item textarea {
-    min-height: 140px;
+    min-height: 160px;
     resize: vertical;
     font-family: "SFMono-Regular", "Menlo", "Consolas", "Liberation Mono", monospace;
     line-height: 1.5;
@@ -182,13 +226,55 @@
   .control-item textarea:focus {
     border-color: #2563eb;
     outline: none;
-    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
   }
 
   .helper-text {
     font-size: 0.78rem;
     color: #6b7280;
-    margin-top: 0.4rem;
+    margin-top: 0.45rem;
+  }
+
+  .option-checkboxes {
+    display: grid;
+    gap: 0.9rem;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+
+  .checkbox-group {
+    padding: 0.85rem 1rem;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+
+  .checkbox-group:hover {
+    border-color: rgba(37, 99, 235, 0.6);
+    background: #f1f5ff;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin: 0;
+  }
+
+  .checkbox-label input {
+    width: 1.1rem;
+    height: 1.1rem;
+    accent-color: #2563eb;
+  }
+
+  .card-actions {
+    margin-top: 1.75rem;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.85rem;
   }
 
   .btn {
@@ -196,50 +282,65 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    padding: 0.75rem 1.5rem;
+    padding: 0.75rem 1.55rem;
     border-radius: 12px;
-    font-size: 0.9rem;
-    font-weight: 600;
     border: none;
+    font-size: 0.92rem;
+    font-weight: 600;
     cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  }
+
+  .btn:focus-visible {
+    outline: 3px solid rgba(37, 99, 235, 0.4);
+    outline-offset: 2px;
   }
 
   .btn-primary {
     background: #2563eb;
     color: #fff;
-    box-shadow: 0 15px 30px -18px rgba(37, 99, 235, 0.75);
+    box-shadow: 0 18px 40px -24px rgba(37, 99, 235, 0.9);
   }
 
   .btn-primary:hover {
     transform: translateY(-1px);
-    box-shadow: 0 18px 40px -22px rgba(37, 99, 235, 0.85);
+    box-shadow: 0 20px 46px -26px rgba(37, 99, 235, 0.95);
   }
 
-  .file-pill {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 0.55rem 0.85rem;
-    border-radius: 999px;
-    background: rgba(37, 99, 235, 0.12);
-    color: #1d4ed8;
-    font-size: 0.85rem;
-    margin-top: 1rem;
+  .btn-success {
+    background: #16a34a;
+    color: #fff;
+    box-shadow: 0 18px 40px -26px rgba(22, 163, 74, 0.85);
+  }
+
+  .btn-success:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 20px 48px -28px rgba(22, 163, 74, 0.9);
+  }
+
+  .btn-outline {
+    background: #fff;
+    color: #1f2937;
+    border: 1px solid #d1d5db;
+  }
+
+  .btn-outline:hover {
+    background: #f3f4f6;
   }
 
   .status-area,
   .diff-status {
-    margin-top: 1.25rem;
+    margin-top: 1rem;
+    min-height: 1.5rem;
   }
 
   .status-badge {
     display: inline-flex;
     align-items: center;
+    gap: 0.4rem;
     padding: 0.5rem 0.85rem;
     border-radius: 999px;
-    font-size: 0.8125rem;
+    font-size: 0.82rem;
     font-weight: 500;
   }
 
@@ -248,11 +349,11 @@
   .status-error { background: #fee2e2; color: #b91c1c; }
 
   .download-card {
-    margin-top: 1rem;
+    margin-top: 1.25rem;
     display: none;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.95rem 1.1rem;
+    gap: 0.8rem;
+    padding: 1rem 1.2rem;
     border-radius: 12px;
     background: #f8fafc;
     border: 1px solid #e5e7eb;
@@ -266,26 +367,46 @@
 
   .diff-grid {
     display: grid;
-    gap: 1rem;
+    gap: 1.1rem;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   }
 
   .diff-actions {
+    margin-top: 1.75rem;
     display: flex;
-    gap: 0.75rem;
     flex-wrap: wrap;
-    margin-top: 1.5rem;
+    gap: 0.85rem;
   }
 
   .created-files {
-    margin-top: 0.75rem;
-    padding-left: 1.2rem;
-    font-size: 0.875rem;
+    margin-top: 0.9rem;
+    padding-left: 1.1rem;
     color: #1f2937;
+    font-size: 0.88rem;
   }
 
   .created-files li {
     margin: 0.25rem 0;
+  }
+
+  @media (max-width: 640px) {
+    .workspace-header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .card-header {
+      align-items: flex-start;
+    }
+
+    .card-actions {
+      width: 100%;
+    }
+
+    .btn {
+      width: 100%;
+      justify-content: center;
+    }
   }
 </style>
 {% endblock %}
@@ -294,113 +415,134 @@
 <div class="csv-workspace">
   <header class="workspace-header">
     <div class="workspace-meta">
-      <div class="workspace-icon">📄</div>
+      <div class="workspace-icon"><span>CSV</span></div>
       <div>
         <h1>CSV 工作区</h1>
-        <p>上传 CSV/Excel 文件，执行数据清洗，并快速生成差异对比结果。</p>
+        <p>上传 CSV/Excel 文件，预览结果并执行常见的数据清洗操作。</p>
       </div>
     </div>
-    <button id="btnChoose" class="btn btn-primary" type="button">选择文件</button>
   </header>
 
-  <section class="card">
-    <div class="upload-card-header">
-      <div>
-        <h2>文件上传</h2>
-        <p class="section-subtitle">拖放或点击上传文件，并配置基础解析参数。</p>
-      </div>
-    </div>
-    <div class="upload-layout">
-      <div id="uploadDropzone" class="upload-dropzone">
+  <section class="card upload-card">
+    <div class="card-header">
+      <div class="card-title-group">
+        <div class="card-icon">📁</div>
         <div>
-          <div class="dropzone-icon">⬆️</div>
-          <div class="dropzone-title">拖放文件到此处或点击选择</div>
-          <div class="dropzone-hint">支持 CSV / Excel 文件，单个文件不超过 100MB</div>
-          <div class="dropzone-limit">支持 .csv、.xls、.xlsx 格式</div>
-          <div id="fileName" class="file-pill"><span></span></div>
+          <h2 class="card-title">文件上传</h2>
+          <p class="card-subtitle">拖放或点击上传文件，支持 CSV / Excel 格式。</p>
         </div>
       </div>
-      <div>
-        <input id="fileInput" type="file" accept=".csv,.xls,.xlsx" hidden>
-        <div class="control-grid">
-          <div class="control-item">
-            <label for="encodingSelect">Encoding / 编码</label>
-            <select id="encodingSelect">
-              <option value="utf-8">UTF-8</option>
-              <option value="gbk">GBK</option>
-              <option value="latin-1">Latin-1</option>
-            </select>
-          </div>
-          <div class="control-item">
-            <label for="separatorInput">Separator / 分隔符</label>
-            <input id="separatorInput" type="text" value="," maxlength="4">
-            <p class="helper-text">留空使用默认逗号分隔符。</p>
-          </div>
-          <div class="control-item">
-            <label for="caseSelect">列名大小写</label>
-            <select id="caseSelect">
-              <option value="upper">全部大写</option>
-              <option value="lower">全部小写</option>
-              <option value="title">单词首字母大写</option>
-            </select>
-          </div>
-        </div>
+      <button id="btnChoose" class="btn btn-primary" type="button">选择文件</button>
+    </div>
+    <div id="uploadDropzone" class="upload-dropzone" role="button" tabindex="0">
+      <div class="dropzone-inner">
+        <div class="dropzone-icon">⬆️</div>
+        <p class="dropzone-title">拖放文件到此处或点击选择</p>
+        <p class="dropzone-hint">支持 CSV / Excel (.csv / .xls / .xlsx)，单个文件最大 100MB</p>
+        <p class="dropzone-limit">拖拽即可快速上传，或点击上方按钮手动选择</p>
+        <div id="fileName" class="file-pill" aria-live="polite"><span></span></div>
       </div>
     </div>
+    <input id="fileInput" type="file" accept=".csv,.xls,.xlsx" hidden>
   </section>
 
-  <section class="card">
-    <h2>选项配置</h2>
-    <p class="section-subtitle">通过勾选来选择需要执行的清洗步骤。</p>
+  <section class="card options-card">
+    <div class="card-header">
+      <div class="card-title-group">
+        <div class="card-icon">⚙️</div>
+        <div>
+          <h2 class="card-title">选项配置</h2>
+          <p class="card-subtitle">配置解析参数并选择需要执行的清洗步骤。</p>
+        </div>
+      </div>
+    </div>
 
-    <div class="control-grid">
+    <div class="option-fields">
       <div class="control-item">
-        <label><input id="cleanColumnsCheckbox" type="checkbox" checked> 列名标准化</label>
-        <p class="helper-text">统一列名大小写并移除特殊字符。</p>
-        <label><input id="stripSpecialCheckbox" type="checkbox" checked> 移除特殊字符</label>
+        <label for="encodingSelect">编码 / Encoding</label>
+        <select id="encodingSelect">
+          <option value="auto" selected>自动检测</option>
+          <option value="utf-8">UTF-8</option>
+          <option value="utf-8-bom">UTF-8 BOM</option>
+          <option value="gbk">GBK</option>
+          <option value="gb2312">GB2312</option>
+          <option value="big5">Big5</option>
+        </select>
       </div>
       <div class="control-item">
-        <label><input id="cleanCellsCheckbox" type="checkbox" checked> 清洗单元格</label>
+        <label for="separatorInput">分隔符 / Separator</label>
+        <input id="separatorInput" type="text" value="," maxlength="4" placeholder=",">
+        <p class="helper-text">留空时默认使用逗号作为分隔符。</p>
+      </div>
+      <div class="control-item">
+        <label for="previewRowsInput">预览行数</label>
+        <input id="previewRowsInput" type="number" min="1" value="10">
+        <p class="helper-text">控制数据预览时展示的行数（可选）。</p>
+      </div>
+      <div class="control-item">
+        <label for="caseSelect">列名大小写</label>
+        <select id="caseSelect">
+          <option value="upper">全部大写</option>
+          <option value="lower">全部小写</option>
+          <option value="title">单词首字母大写</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="option-checkboxes">
+      <div class="checkbox-group">
+        <label class="checkbox-label"><input id="cleanColumnsCheckbox" type="checkbox" checked> 列名标准化</label>
+        <p class="helper-text">统一列名大小写并移除特殊字符。</p>
+      </div>
+      <div class="checkbox-group">
+        <label class="checkbox-label"><input id="stripSpecialCheckbox" type="checkbox" checked> 移除特殊字符</label>
+        <p class="helper-text">在列名中移除符号和多余空白。</p>
+      </div>
+      <div class="checkbox-group">
+        <label class="checkbox-label"><input id="cleanCellsCheckbox" type="checkbox" checked> 清洗单元格</label>
         <p class="helper-text">去除首尾空格并规范空值。</p>
       </div>
-      <div class="control-item">
-        <label><input id="removeDuplicatesCheckbox" type="checkbox" checked> 去除重复行</label>
-        <p class="helper-text">基于所有列去除完全重复的行。</p>
+      <div class="checkbox-group">
+        <label class="checkbox-label"><input id="removeDuplicatesCheckbox" type="checkbox" checked> 去除重复行</label>
+        <p class="helper-text">基于所有列去除完全重复的记录。</p>
       </div>
-      <div class="control-item">
-        <label><input id="normalizeStringsCheckbox" type="checkbox" checked> 字符串清洗</label>
-        <p class="helper-text">统一字符串列为大写、移除空白、空格替换为下划线。</p>
+      <div class="checkbox-group">
+        <label class="checkbox-label"><input id="normalizeStringsCheckbox" type="checkbox" checked> 字符串清洗</label>
+        <p class="helper-text">统一字符串列为大写、移除空白、替换空格。</p>
       </div>
-      <div class="control-item">
-        <label><input id="roundDecimalsCheckbox" type="checkbox" checked> 小数四舍五入</label>
+      <div class="checkbox-group">
+        <label class="checkbox-label"><input id="roundDecimalsCheckbox" type="checkbox" checked> 小数四舍五入</label>
         <p class="helper-text">对数值列执行指定精度的四舍五入。</p>
       </div>
-      <div class="control-item">
-        <label><input id="scaleNumericCheckbox" type="checkbox"> 数值缩放 / 平移</label>
+      <div class="checkbox-group">
+        <label class="checkbox-label"><input id="scaleNumericCheckbox" type="checkbox"> 数值缩放 / 平移</label>
         <p class="helper-text">用于统一不同单位的数值范围。</p>
       </div>
-      <div class="control-item">
-        <label><input id="formatPercentCheckbox" type="checkbox"> 百分比格式化</label>
+      <div class="checkbox-group">
+        <label class="checkbox-label"><input id="formatPercentCheckbox" type="checkbox"> 百分比格式化</label>
         <p class="helper-text">识别并标准化百分比字段。</p>
       </div>
-      <div class="control-item">
-        <label><input id="formatDatesCheckbox" type="checkbox" checked> 日期格式化</label>
+      <div class="checkbox-group">
+        <label class="checkbox-label"><input id="formatDatesCheckbox" type="checkbox" checked> 日期格式化</label>
         <p class="helper-text">解析常见日期格式并输出统一格式。</p>
       </div>
-      <div class="control-item">
-        <label><input id="fillMissingCheckbox" type="checkbox" checked> 缺失值填充</label>
-        <p class="helper-text">对缺失数据执行填充策略。</p>
+      <div class="checkbox-group">
+        <label class="checkbox-label"><input id="fillMissingCheckbox" type="checkbox" checked> 缺失值填充</label>
+        <p class="helper-text">对缺失数据执行自定义的填充策略。</p>
       </div>
-      <div class="control-item">
-        <label><input id="handleOutliersCheckbox" type="checkbox"> 异常值处理</label>
+      <div class="checkbox-group">
+        <label class="checkbox-label"><input id="handleOutliersCheckbox" type="checkbox"> 异常值处理</label>
         <p class="helper-text">通过截断或替换来缓解异常值。</p>
       </div>
     </div>
 
-    <div class="action-row" style="margin-top: 1.5rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
-      <button id="btnClean" class="btn btn-primary" type="button">执行清洗</button>
-      <div id="statusMessage" class="status-area"></div>
+    <div class="card-actions">
+      <button class="btn btn-primary" type="button" id="btnPreview">预览数据</button>
+      <button id="btnClean" class="btn btn-success" type="button">执行清洗</button>
+      <button class="btn btn-outline" type="button" id="btnResetOptions">清除选项</button>
     </div>
+
+    <div id="statusMessage" class="status-area"></div>
 
     <div id="cleanDownload" class="download-card">
       <span>清洗完成，可下载处理后的文件：</span>
@@ -408,23 +550,30 @@
     </div>
   </section>
 
-  <section class="card">
-    <h2>差异对比</h2>
-    <p class="section-subtitle">上传两个文件并提供映射配置，以生成高亮或报告结果。</p>
+  <section class="card diff-card">
+    <div class="card-header">
+      <div class="card-title-group">
+        <div class="card-icon">🆚</div>
+        <div>
+          <h2 class="card-title">差异对比</h2>
+          <p class="card-subtitle">上传两个文件并提供映射配置，生成差异高亮或对比报告。</p>
+        </div>
+      </div>
+    </div>
 
     <div class="diff-grid">
       <div class="control-item">
-        <label for="diffFile1Input">File 1</label>
+        <label for="diffFile1Input">文件一</label>
         <input id="diffFile1Input" type="file" accept=".csv,.xls,.xlsx">
         <div id="diffFile1Name" class="file-pill"><span></span></div>
       </div>
       <div class="control-item">
-        <label for="diffFile2Input">File 2</label>
+        <label for="diffFile2Input">文件二</label>
         <input id="diffFile2Input" type="file" accept=".csv,.xls,.xlsx">
         <div id="diffFile2Name" class="file-pill"><span></span></div>
       </div>
       <div class="control-item">
-        <label for="diffEncoding1">File 1 编码</label>
+        <label for="diffEncoding1">文件一编码</label>
         <select id="diffEncoding1">
           <option value="">自动检测</option>
           <option value="utf-8">UTF-8</option>
@@ -433,7 +582,7 @@
         </select>
       </div>
       <div class="control-item">
-        <label for="diffEncoding2">File 2 编码</label>
+        <label for="diffEncoding2">文件二编码</label>
         <select id="diffEncoding2">
           <option value="">自动检测</option>
           <option value="utf-8">UTF-8</option>
@@ -442,14 +591,14 @@
         </select>
       </div>
       <div class="control-item">
-        <label for="diffSeparator1">File 1 分隔符</label>
+        <label for="diffSeparator1">文件一分隔符</label>
         <input id="diffSeparator1" type="text" maxlength="4" placeholder=",">
       </div>
       <div class="control-item">
-        <label for="diffSeparator2">File 2 分隔符</label>
+        <label for="diffSeparator2">文件二分隔符</label>
         <input id="diffSeparator2" type="text" maxlength="4" placeholder=",">
       </div>
-      <div class="control-item" style="grid-column: 1 / -1;">
+      <div class="control-item">
         <label for="diffMappingInput">映射配置 (JSON 数组)</label>
         <textarea id="diffMappingInput" placeholder='[{"key": "ID", "columns": ["Name", "Amount"]}]'></textarea>
         <p class="helper-text">请提供字段映射数组，确保主键和比较列配置正确。</p>
@@ -458,7 +607,7 @@
 
     <div class="diff-actions">
       <button id="btnDiffHighlight" class="btn btn-primary" type="button">生成高亮文件</button>
-      <button id="btnDiffReport" class="btn btn-primary" type="button">生成差异报告</button>
+      <button id="btnDiffReport" class="btn btn-outline" type="button">生成差异报告</button>
     </div>
 
     <div id="diffStatus" class="diff-status"></div>
