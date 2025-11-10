@@ -365,28 +365,163 @@
     text-decoration: none;
   }
 
-  .diff-grid {
-    display: grid;
-    gap: 1.1rem;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  .results-card {
+    display: none;
+    flex-direction: column;
+    gap: 1.5rem;
   }
 
-  .diff-actions {
-    margin-top: 1.75rem;
+  .results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .results-tabs {
+    display: inline-flex;
+    align-items: center;
+    background: #f1f5f9;
+    padding: 0.35rem;
+    border-radius: 999px;
+    gap: 0.35rem;
+  }
+
+  .result-tab {
+    border: none;
+    background: transparent;
+    color: #475569;
+    font-weight: 600;
+    padding: 0.45rem 1.05rem;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease;
+  }
+
+  .result-tab:hover,
+  .result-tab:focus-visible {
+    background: rgba(37, 99, 235, 0.12);
+    color: #1d4ed8;
+    outline: none;
+  }
+
+  .result-tab.active {
+    background: #fff;
+    color: #1d4ed8;
+    box-shadow: 0 8px 16px -10px rgba(37, 99, 235, 0.45);
+  }
+
+  .tab-panel {
+    display: none;
+  }
+
+  .tab-panel.active {
+    display: block;
+  }
+
+  .column-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.85rem;
+    gap: 0.6rem;
+    margin-bottom: 1.25rem;
   }
 
-  .created-files {
-    margin-top: 0.9rem;
-    padding-left: 1.1rem;
-    color: #1f2937;
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.4rem 0.75rem;
+    border-radius: 999px;
+    background: #e0f2fe;
+    color: #1d4ed8;
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .chip.numeric {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  .chip.date {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .table-container {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    overflow-x: auto;
+    max-height: 420px;
+  }
+
+  table.data-table {
+    width: 100%;
+    border-collapse: collapse;
     font-size: 0.88rem;
   }
 
-  .created-files li {
-    margin: 0.25rem 0;
+  table.data-table thead {
+    background: #f8fafc;
+  }
+
+  table.data-table th,
+  table.data-table td {
+    border: 1px solid #e2e8f0;
+    padding: 0.65rem 0.75rem;
+    text-align: left;
+    color: #0f172a;
+  }
+
+  table.data-table tr:nth-child(even) {
+    background: #f9fafb;
+  }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .summary-card {
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    padding: 1rem 1.2rem;
+    background: #f8fafc;
+  }
+
+  .summary-value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  .summary-label {
+    margin-top: 0.3rem;
+    color: #64748b;
+    font-size: 0.85rem;
+  }
+
+  .summary-details {
+    line-height: 1.6;
+    color: #334155;
+    font-size: 0.88rem;
+  }
+
+  .summary-details strong {
+    color: #1e293b;
+    font-weight: 600;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    border-radius: 14px;
+    border: 1px dashed #cbd5f5;
+    color: #64748b;
+    background: #f8fafc;
   }
 
   @media (max-width: 640px) {
@@ -461,9 +596,12 @@
       <div class="control-item">
         <label for="encodingSelect">编码 / Encoding</label>
         <select id="encodingSelect">
+          <option value="auto" selected>自动检测</option>
           <option value="utf-8">UTF-8</option>
+          <option value="utf-8-bom">UTF-8 BOM</option>
           <option value="gbk">GBK</option>
-          <option value="latin-1">Latin-1</option>
+          <option value="gb2312">GB2312</option>
+          <option value="big5">Big5</option>
         </select>
       </div>
       <div class="control-item">
@@ -535,6 +673,7 @@
 
     <div class="card-actions">
       <button class="btn btn-primary" type="button" id="btnPreview">预览数据</button>
+      <button class="btn btn-outline" type="button" id="btnSummary">生成概要</button>
       <button id="btnClean" class="btn btn-success" type="button">执行清洗</button>
       <button class="btn btn-outline" type="button" id="btnResetOptions">清除选项</button>
     </div>
@@ -547,69 +686,36 @@
     </div>
   </section>
 
-  <section class="card diff-card">
-    <div class="card-header">
+  <section class="card results-card" id="resultSection">
+    <div class="results-header">
       <div class="card-title-group">
-        <div class="card-icon">🆚</div>
+        <div class="card-icon">📊</div>
         <div>
-          <h2 class="card-title">差异对比</h2>
-          <p class="card-subtitle">上传两个文件并提供映射配置，生成差异高亮或对比报告。</p>
+          <h2 class="card-title">分析结果</h2>
+          <p class="card-subtitle">查看数据预览与概要统计，辅助后续清洗与导出。</p>
         </div>
       </div>
-    </div>
-
-    <div class="diff-grid">
-      <div class="control-item">
-        <label for="diffFile1Input">文件一</label>
-        <input id="diffFile1Input" type="file" accept=".csv,.xls,.xlsx">
-        <div id="diffFile1Name" class="file-pill"><span></span></div>
-      </div>
-      <div class="control-item">
-        <label for="diffFile2Input">文件二</label>
-        <input id="diffFile2Input" type="file" accept=".csv,.xls,.xlsx">
-        <div id="diffFile2Name" class="file-pill"><span></span></div>
-      </div>
-      <div class="control-item">
-        <label for="diffEncoding1">文件一编码</label>
-        <select id="diffEncoding1">
-          <option value="">自动检测</option>
-          <option value="utf-8">UTF-8</option>
-          <option value="gbk">GBK</option>
-          <option value="latin-1">Latin-1</option>
-        </select>
-      </div>
-      <div class="control-item">
-        <label for="diffEncoding2">文件二编码</label>
-        <select id="diffEncoding2">
-          <option value="">自动检测</option>
-          <option value="utf-8">UTF-8</option>
-          <option value="gbk">GBK</option>
-          <option value="latin-1">Latin-1</option>
-        </select>
-      </div>
-      <div class="control-item">
-        <label for="diffSeparator1">文件一分隔符</label>
-        <input id="diffSeparator1" type="text" maxlength="4" placeholder=",">
-      </div>
-      <div class="control-item">
-        <label for="diffSeparator2">文件二分隔符</label>
-        <input id="diffSeparator2" type="text" maxlength="4" placeholder=",">
-      </div>
-      <div class="control-item">
-        <label for="diffMappingInput">映射配置 (JSON 数组)</label>
-        <textarea id="diffMappingInput" placeholder='[{"key": "ID", "columns": ["Name", "Amount"]}]'></textarea>
-        <p class="helper-text">请提供字段映射数组，确保主键和比较列配置正确。</p>
+      <div class="results-tabs" role="tablist">
+        <button id="tabButtonPreview" class="result-tab active" type="button" data-tab="preview" aria-selected="true">数据预览</button>
+        <button id="tabButtonSummary" class="result-tab" type="button" data-tab="summary" aria-selected="false">概要统计</button>
       </div>
     </div>
 
-    <div class="diff-actions">
-      <button id="btnDiffHighlight" class="btn btn-primary" type="button">生成高亮文件</button>
-      <button id="btnDiffReport" class="btn btn-outline" type="button">生成差异报告</button>
+    <div id="tabPreview" class="tab-panel active" role="tabpanel" aria-labelledby="tabButtonPreview">
+      <div id="columnsArea" class="column-chips"></div>
+      <div class="table-container">
+        <table id="previewTable" class="data-table"></table>
+      </div>
+      <div id="previewEmpty" class="empty-state" style="display: none;">暂未获取预览数据，请先上传并点击“预览数据”。</div>
+    </div>
+    <div id="tabSummary" class="tab-panel" role="tabpanel" aria-labelledby="tabButtonSummary">
+      <div id="summaryCards" class="summary-grid"></div>
+      <div id="summaryDetails" class="summary-details"></div>
+      <div id="summaryEmpty" class="empty-state" style="display: none;">暂未生成概要统计，请先点击“生成概要”。</div>
     </div>
 
-    <div id="diffStatus" class="diff-status"></div>
-    <ul id="diffCreatedFiles" class="created-files"></ul>
   </section>
+
 </div>
 
 <script src="{{ url_for('static', filename='js/horcsv.js') }}"></script>

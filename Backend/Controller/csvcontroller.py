@@ -375,6 +375,10 @@ def api_clean():
             date_cols: list[str] = []
             for col in df.columns:
                 series = df[col]
+                if isinstance(series, pd.DataFrame):
+                    if series.shape[1] == 0:
+                        continue
+                    series = series.iloc[:, 0]
                 if pd.api.types.is_datetime64_any_dtype(series):
                     date_cols.append(col)
                     continue

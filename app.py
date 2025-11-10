@@ -127,6 +127,14 @@ def csv():
         return redirect(url_for('home'))
     return render_template('CSV.html', active_page='csv')
 
+@app.route('/csv/diff')
+@login_required
+def csv_diff():
+    """CSV 差异对比工作区"""
+    if not user_manager.check_sector_access(g.current_user['username'], 'general'):
+        return redirect(url_for('home'))
+    return render_template('CSV_diff.html', active_page='csv_diff')
+
 @app.route('/hormemo')
 @login_required
 def hormemo():
