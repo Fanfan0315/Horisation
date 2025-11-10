@@ -89,6 +89,39 @@ def _parse_mapping(default_prefix: str, required: bool = False):
 
     return final, None
 
+
+def _prepare_output_mapping(mapping: list[dict], default_prefix: str):
+    """Resolve output filenames to the uploads directory.
+
+    Ensures every mapping entry writes to the configured upload folder so the
+    generated Excel files can be downloaded through the shared download
+    endpoint. Returns a tuple of (prepared_mapping, downloadable_names).
+    """
+
+    upload_dir = current_app.config.get('UPLOAD_FOLDER') or os.path.join(current_app.root_path, '_uploads')
+    os.makedirs(upload_dir, exist_ok=True)
+
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    prepared: list[dict] = []
+    download_names: list[str] = []
+
+    for idx, item in enumerate(mapping, start=1):
+        entry = dict(item)
+        requested_name = entry.get('out_file') or f"{default_prefix}_{idx}.xlsx"
+        safe_name = secure_filename(requested_name) or f"{default_prefix}_{idx}.xlsx"
+
+        stem, ext = os.path.splitext(safe_name)
+        if not ext:
+            ext = '.xlsx'
+
+        final_name = f"{stem}_{timestamp}{ext}"
+        entry['out_file'] = os.path.join(upload_dir, final_name)
+
+        prepared.append(entry)
+        download_names.append(final_name)
+
+    return prepared, download_names
+
 def _read_diff_frame(data: bytes, filename: str, sep: Optional[str] = None, encoding: Optional[str] = None):
     df = csv_processor.read_file_to_dataframe(
         data,
@@ -100,6 +133,55 @@ def _read_diff_frame(data: bytes, filename: str, sep: Optional[str] = None, enco
 
 
 # ==================== API 路由 ====================
+
+@bp.post("/api/csv/diff-metadata")
+def api_diff_metadata():
+    file1 = request.files.get('file1')
+    file2 = request.files.get('file2')
+
+    if not file1 or not file1.filename:
+        return jsonify({'ok': False, 'error': 'file1 is required'}), 400
+    if not file2 or not file2.filename:
+        return jsonify({'ok': False, 'error': 'file2 is required'}), 400
+
+    sep1 = request.args.get('sep1') or request.form.get('sep1')
+    sep2 = request.args.get('sep2') or request.form.get('sep2')
+    encoding1 = request.args.get('encoding1') or request.form.get('encoding1')
+    encoding2 = request.args.get('encoding2') or request.form.get('encoding2')
+
+    try:
+        data1 = file1.read()
+        data2 = file2.read()
+
+        df1 = _read_diff_frame(data1, file1.filename, sep=sep1, encoding=encoding1)
+        df2 = _read_diff_frame(data2, file2.filename, sep=sep2, encoding=encoding2)
+
+        dtypes1 = csv_processor._infer_column_types(df1)
+        dtypes2 = csv_processor._infer_column_types(df2)
+
+        numeric1 = [col for col, dtype in dtypes1.items() if dtype == 'numeric']
+        numeric2 = [col for col, dtype in dtypes2.items() if dtype == 'numeric']
+
+        numeric1_set = set(numeric1)
+        numeric2_set = set(numeric2)
+
+        shared_numeric = [
+            col for col in df1.columns
+            if col in numeric1_set and col in numeric2_set
+        ]
+
+        return jsonify({
+            'ok': True,
+            'columns1': list(df1.columns),
+            'columns2': list(df2.columns),
+            'numeric_columns1': numeric1,
+            'numeric_columns2': numeric2,
+            'shared_numeric_columns': shared_numeric
+        })
+    except ImportError as e:
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'ok': False, 'error': f'diff metadata failed: {e}'}), 400
 
 @bp.post("/api/csv/preview")
 def api_preview():
@@ -529,9 +611,16 @@ def api_diff_highlight():
         if list(df1.columns) != list(df2.columns):
             return jsonify({'ok': False, 'error': 'files must share the same columns'}), 400
 
-        csv_processor.diff_highlight(df1, df2, mapping)
+        prepared_mapping, download_names = _prepare_output_mapping(mapping, 'diff_highlight')
 
-        return jsonify({'ok': True, 'created_files': [m['out_file'] for m in mapping]})
+        csv_processor.diff_highlight(df1, df2, prepared_mapping)
+
+        download_urls = [
+            url_for('csv_api.download_cleaned_file', filename=name)
+            for name in download_names
+        ]
+
+        return jsonify({'ok': True, 'created_files': download_names, 'download_urls': download_urls})
     except ImportError as e:
         return jsonify({'ok': False, 'error': str(e)}), 400
     except Exception as e:
@@ -570,9 +659,16 @@ def api_diff_report():
         if list(df1.columns) != list(df2.columns):
             return jsonify({'ok': False, 'error': 'files must share the same columns'}), 400
 
-        csv_processor.write_diff_report(df1, df2, mapping)
+        prepared_mapping, download_names = _prepare_output_mapping(mapping, 'diff_report')
 
-        return jsonify({'ok': True, 'created_files': [m['out_file'] for m in mapping]})
+        csv_processor.write_diff_report(df1, df2, prepared_mapping)
+
+        download_urls = [
+            url_for('csv_api.download_cleaned_file', filename=name)
+            for name in download_names
+        ]
+
+        return jsonify({'ok': True, 'created_files': download_names, 'download_urls': download_urls})
     except ImportError as e:
         return jsonify({'ok': False, 'error': str(e)}), 400
     except Exception as e:

@@ -199,6 +199,163 @@
     resize: vertical;
   }
 
+  .mapping-item .mapping-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .mapping-item .mapping-label label {
+    margin: 0;
+  }
+
+  .mapping-actions {
+    display: inline-flex;
+    gap: 0.5rem;
+  }
+
+  .mapping-actions button {
+    background: none;
+    border: none;
+    color: #2563eb;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  .mapping-actions button:hover {
+    background: rgba(37, 99, 235, 0.12);
+    color: #1d4ed8;
+  }
+
+  .mapping-actions button:disabled {
+    color: #94a3b8;
+    cursor: not-allowed;
+    background: transparent;
+  }
+
+  .mapping-checkboxes {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .mapping-columns {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+
+  .mapping-column {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 1rem;
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .mapping-column-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    color: #475569;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .mapping-column-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1f2937;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .mapping-column-count {
+    font-size: 0.78rem;
+    color: #94a3b8;
+  }
+
+  .mapping-checkbox-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .mapping-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.6rem;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 0.92rem;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  }
+
+  .mapping-checkbox input[type="checkbox"] {
+    width: 1.1rem;
+    height: 1.1rem;
+    accent-color: #2563eb;
+  }
+
+  .mapping-checkbox.checked {
+    background: #eef2ff;
+    border-color: rgba(99, 102, 241, 0.35);
+    color: #1d4ed8;
+    font-weight: 600;
+  }
+
+  .mapping-checkbox:not(.disabled):hover {
+    border-color: rgba(99, 102, 241, 0.35);
+    background: #eef2ff;
+  }
+
+  .mapping-checkbox.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: #f1f5f9;
+  }
+
+  .mapping-checkbox.disabled:hover {
+    border-color: transparent;
+    background: #f1f5f9;
+  }
+
+  .mapping-placeholder {
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    background: #eef2ff;
+    color: #4338ca;
+    font-size: 0.9rem;
+  }
+
+  .mapping-placeholder.error {
+    background: #fee2e2;
+    color: #b91c1c;
+  }
+
+  .mapping-placeholder.warning {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .mapping-placeholder.subtle {
+    background: #f1f5f9;
+    color: #475569;
+  }
+
   .control-item input:focus,
   .control-item select:focus,
   .control-item textarea:focus {
@@ -467,9 +624,17 @@
             <p class="helper-text">用于匹配两个文件记录的唯一键，可输入多个字段以逗号分隔。</p>
           </div>
           <div class="control-item mapping-item">
-            <label for="diffMappingInput">映射配置 (JSON 数组)</label>
-            <textarea id="diffMappingInput" placeholder='[{"key": "ID", "columns": ["Name", "Amount"]}]'></textarea>
-            <p class="helper-text">请提供字段映射数组，确保主键和比较列配置正确。</p>
+            <div class="mapping-label">
+              <label>比较数值列</label>
+              <div class="mapping-actions">
+                <button id="diffSelectAllColumns" type="button">全选</button>
+                <button id="diffClearColumns" type="button">清空</button>
+              </div>
+            </div>
+            <div id="diffMappingContainer" class="mapping-checkboxes">
+              <div class="mapping-placeholder subtle">请先上传两个文件以加载数值列。</div>
+            </div>
+            <p class="helper-text">系统会自动检测两个文件共有的数值列，请勾选需要比较的列。</p>
           </div>
         </div>
       </div>

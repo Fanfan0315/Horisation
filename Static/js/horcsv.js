@@ -36,7 +36,9 @@
   const diffEncoding2 = $('diffEncoding2');
   const diffSeparator1 = $('diffSeparator1');
   const diffSeparator2 = $('diffSeparator2');
-  const diffMappingInput = $('diffMappingInput');
+  const diffMappingContainer = $('diffMappingContainer');
+  const diffSelectAllColumns = $('diffSelectAllColumns');
+  const diffClearColumns = $('diffClearColumns');
   const diffPrimaryKey = $('diffPrimaryKey');
   const btnDiffHighlight = $('btnDiffHighlight');
   const btnDiffReport = $('btnDiffReport');
@@ -79,6 +81,10 @@
 
   let currentFile = null;
   const diffSelectedFiles = new Map();
+  let diffCheckboxGroups = new Map();
+  let diffMetadataTimer = null;
+  let diffMetadataAbortController = null;
+  let diffMetadataLoading = false;
 
   function setCurrentFile(file) {
     currentFile = file || null;
@@ -366,12 +372,24 @@
     diffStatusEl.appendChild(badge);
   }
 
-  function renderCreatedFiles(files) {
+  function renderCreatedFiles(files, urls = []) {
     if (!diffCreatedFiles) return;
     diffCreatedFiles.innerHTML = '';
-    (files || []).forEach(file => {
+    (files || []).forEach((file, idx) => {
       const li = document.createElement('li');
-      li.textContent = `📁 ${file}`;
+      const url = urls[idx];
+
+      if (url) {
+        const link = document.createElement('a');
+        link.href = url;
+        link.textContent = `📁 ${file}`;
+        link.setAttribute('download', file || 'diff.xlsx');
+        link.target = '_blank';
+        link.rel = 'noopener';
+        li.appendChild(link);
+      } else {
+        li.textContent = `📁 ${file}`;
+      }
       diffCreatedFiles.appendChild(li);
     });
   }
@@ -416,94 +434,273 @@
     }
   }
 
-  function stripBom(text) {
-    return text.replace(/^\ufeff/, '');
+  function updateMappingActionButtons() {
+    const hasColumns = diffCheckboxGroups.size > 0;
+    if (diffSelectAllColumns) {
+      diffSelectAllColumns.disabled = !hasColumns;
+    }
+    if (diffClearColumns) {
+      diffClearColumns.disabled = !hasColumns;
+    }
   }
 
-  function normalizeSmartPunctuation(text) {
-    return text
-      .replace(/[\u201C\u201D]/g, '"')
-      .replace(/[\u2018\u2019]/g, "'")
-      .replace(/[\uFF0C\u3001]/g, ',')
-      .replace(/[\uFF1A]/g, ':');
+  function renderDiffMappingPlaceholder(text, variant = 'subtle') {
+    if (!diffMappingContainer) return;
+    diffMappingContainer.innerHTML = '';
+    const message = document.createElement('div');
+    const classes = ['mapping-placeholder'];
+    if (variant) {
+      classes.push(variant);
+    }
+    message.className = classes.join(' ');
+    message.textContent = text;
+    diffMappingContainer.appendChild(message);
+    diffCheckboxGroups = new Map();
+    updateMappingActionButtons();
   }
 
-  function clampJsonEnvelope(text) {
-    const startIdx = text.search(/[\[{]/);
-    if (startIdx > 0) {
-      text = text.slice(startIdx);
-    }
-
-    const lastArray = text.lastIndexOf(']');
-    const lastObject = text.lastIndexOf('}');
-    const endIdx = Math.max(lastArray, lastObject);
-    if (endIdx >= 0 && endIdx < text.length - 1) {
-      text = text.slice(0, endIdx + 1);
-    }
-
-    return text;
+  function captureDiffSelection() {
+    const state = new Map();
+    diffCheckboxGroups.forEach((entries, column) => {
+      const isChecked = entries.some(({ input }) => input.checked);
+      state.set(column, isChecked);
+    });
+    return state;
   }
 
-  function buildMappingCandidates(text) {
-    const candidates = [];
-    const trimmed = clampJsonEnvelope(normalizeSmartPunctuation(stripBom(text.trim())));
-
-    if (text) {
-      candidates.push(text);
-    }
-
-    if (trimmed) {
-      candidates.push(trimmed);
-
-      const loweredBool = trimmed
-        .replace(/\bTrue\b/g, 'true')
-        .replace(/\bFalse\b/g, 'false')
-        .replace(/\bNone\b/g, 'null');
-      if (loweredBool !== trimmed) {
-        candidates.push(loweredBool);
+  function handleDiffCheckboxChange(column, checked, sourceInput = null) {
+    const peers = diffCheckboxGroups.get(column) || [];
+    peers.forEach(({ input, wrapper }) => {
+      if (input !== sourceInput) {
+        input.checked = checked;
       }
-
-      if (!trimmed.includes('"') && trimmed.includes("'")) {
-        candidates.push(trimmed.replace(/'/g, '"'));
-      }
-    }
-    return [...new Set(candidates.filter(Boolean))];
+      wrapper.classList.toggle('checked', checked);
+    });
   }
 
-  function getMappingPayload(inputEl, { required = false } = {}) {
-    if (!inputEl) {
+  function getSelectedDiffColumns() {
+    const selected = [];
+    diffCheckboxGroups.forEach((entries, column) => {
+      if (entries.some(({ input }) => input.checked)) {
+        selected.push(column);
+      }
+    });
+    return selected;
+  }
+
+  function buildDiffMappingPayload({ required = false } = {}) {
+    if (!diffMappingContainer) {
       if (required) {
-        throw new Error('缺少映射输入区域');
+        throw new Error('缺少映射配置区域');
       }
-      return '';
+      return '[]';
     }
 
-    const text = inputEl.value || '';
-    if (!text) {
+    if (diffCheckboxGroups.size === 0) {
       if (required) {
-        throw new Error('请提供映射配置（JSON 数组）');
-      }
-      return '';
-    }
-
-    let lastError = null;
-    const candidates = buildMappingCandidates(text);
-
-    for (const candidate of candidates) {
-      try {
-        const parsed = JSON.parse(candidate);
-        if (!Array.isArray(parsed)) {
-          throw new Error('映射配置必须是数组');
+        if (diffMetadataLoading) {
+          throw new Error('数值列正在加载，请稍候...');
         }
-        return JSON.stringify(parsed);
-      } catch (err) {
-        lastError = err;
+        throw new Error('未检测到可比较的数值列，请检查文件或解析设置');
       }
+      return '[]';
     }
 
-    const message = lastError?.message || '未知错误';
-    throw new Error(`映射配置 JSON 无效：${message}`);
+    const selected = getSelectedDiffColumns();
+    if (!selected.length) {
+      if (required) {
+        throw new Error('请至少选择一个需要比较的数值列');
+      }
+      return '[]';
+    }
+
+    return JSON.stringify([{ columns: selected }]);
   }
+
+  function buildMappingColumn(title, numericColumns, sharedSet, fileKey, previousState) {
+    const columnEl = document.createElement('div');
+    columnEl.className = 'mapping-column';
+
+    const header = document.createElement('div');
+    header.className = 'mapping-column-header';
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'mapping-column-title';
+    titleEl.textContent = title;
+    header.appendChild(titleEl);
+
+    const countEl = document.createElement('div');
+    countEl.className = 'mapping-column-count';
+    countEl.textContent = `${numericColumns.length} 列`;
+    header.appendChild(countEl);
+
+    columnEl.appendChild(header);
+
+    const listEl = document.createElement('div');
+    listEl.className = 'mapping-checkbox-list';
+
+    if (!numericColumns.length) {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'mapping-placeholder subtle';
+      placeholder.textContent = '未检测到数值列';
+      listEl.appendChild(placeholder);
+    }
+
+    numericColumns.forEach((col, idx) => {
+      const isShared = sharedSet.has(col);
+      const labelEl = document.createElement('label');
+      labelEl.className = 'mapping-checkbox';
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = col;
+      checkbox.id = `diff-${fileKey}-${idx}`;
+
+      if (!isShared) {
+        checkbox.disabled = true;
+        checkbox.checked = false;
+        labelEl.classList.add('disabled');
+      } else {
+        const hasPrev = previousState.has(col);
+        const shouldCheck = hasPrev ? previousState.get(col) : true;
+        checkbox.checked = shouldCheck;
+      }
+
+      const span = document.createElement('span');
+      span.textContent = isShared ? col : `${col}（仅此文件）`;
+
+      labelEl.appendChild(checkbox);
+      labelEl.appendChild(span);
+      listEl.appendChild(labelEl);
+
+      if (isShared) {
+        let group = diffCheckboxGroups.get(col);
+        if (!group) {
+          group = [];
+          diffCheckboxGroups.set(col, group);
+        }
+        group.push({ input: checkbox, wrapper: labelEl });
+        checkbox.addEventListener('change', () => handleDiffCheckboxChange(col, checkbox.checked, checkbox));
+        handleDiffCheckboxChange(col, checkbox.checked, checkbox);
+      }
+    });
+
+    columnEl.appendChild(listEl);
+    return columnEl;
+  }
+
+  function renderDiffMappingOptions(metadata, previousState = new Map()) {
+    if (!diffMappingContainer) return;
+
+    diffMappingContainer.innerHTML = '';
+    diffCheckboxGroups = new Map();
+
+    const sharedSet = new Set(metadata?.shared_numeric_columns || []);
+    const numeric1 = metadata?.numeric_columns1 || [];
+    const numeric2 = metadata?.numeric_columns2 || [];
+
+    if (!sharedSet.size) {
+      const warning = document.createElement('div');
+      warning.className = 'mapping-placeholder warning';
+      warning.textContent = '未检测到两个文件共有的数值列，请检查编码、分隔符或数据内容。';
+      diffMappingContainer.appendChild(warning);
+    }
+    const columnsWrapper = document.createElement('div');
+    columnsWrapper.className = 'mapping-columns';
+    columnsWrapper.appendChild(buildMappingColumn('文件一数值列', numeric1, sharedSet, 'file1', previousState));
+    columnsWrapper.appendChild(buildMappingColumn('文件二数值列', numeric2, sharedSet, 'file2', previousState));
+
+    diffMappingContainer.appendChild(columnsWrapper);
+    updateMappingActionButtons();
+  }
+
+  async function loadDiffMetadata() {
+    if (!diffMappingContainer) return;
+
+    const file1 = diffFile1Input?.files?.[0] || diffSelectedFiles.get('file1');
+    const file2 = diffFile2Input?.files?.[0] || diffSelectedFiles.get('file2');
+
+    if (!file1 || !file2) {
+      renderDiffMappingPlaceholder('请先上传两个文件以加载数值列。', 'subtle');
+      diffMetadataLoading = false;
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file1', file1, file1.name);
+    formData.append('file2', file2, file2.name);
+    appendIfValue(formData, 'encoding1', diffEncoding1?.value || '');
+    appendIfValue(formData, 'encoding2', diffEncoding2?.value || '');
+    appendIfValue(formData, 'sep1', diffSeparator1?.value?.trim() || '');
+    appendIfValue(formData, 'sep2', diffSeparator2?.value?.trim() || '');
+
+    const previousState = captureDiffSelection();
+
+    if (diffMetadataAbortController) {
+      diffMetadataAbortController.abort();
+    }
+
+    diffMetadataAbortController = new AbortController();
+    diffMetadataLoading = true;
+    renderDiffMappingPlaceholder('正在检测数值列...', 'subtle');
+
+    try {
+      const resp = await fetch('/api/csv/diff-metadata', {
+        method: 'POST',
+        body: formData,
+        signal: diffMetadataAbortController.signal
+      });
+      const data = await parseJsonResponse(resp);
+
+      if (!resp.ok || !data?.ok) {
+        throw new Error(data?.error || `HTTP ${resp.status}`);
+      }
+
+      renderDiffMappingOptions(data, previousState);
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        return;
+      }
+      renderDiffMappingPlaceholder(`加载数值列失败：${err.message || err}`, 'error');
+    } finally {
+      diffMetadataAbortController = null;
+      diffMetadataLoading = false;
+      updateMappingActionButtons();
+      }
+    }
+    function scheduleDiffMetadataRefresh(delay = 300) {
+      if (!diffMappingContainer) return;
+      if (diffMetadataTimer) {
+        clearTimeout(diffMetadataTimer);
+      }
+      diffMetadataTimer = setTimeout(() => {
+        diffMetadataTimer = null;
+        loadDiffMetadata();
+      }, delay);
+    }
+  updateMappingActionButtons();
+
+  diffSelectAllColumns?.addEventListener('click', () => {
+    diffCheckboxGroups.forEach((_, column) => {
+      handleDiffCheckboxChange(column, true);
+    });
+  });
+
+  diffClearColumns?.addEventListener('click', () => {
+    diffCheckboxGroups.forEach((_, column) => {
+      handleDiffCheckboxChange(column, false);
+    });
+  });
+
+  [diffEncoding1, diffEncoding2].forEach((el) => {
+    el?.addEventListener('change', () => scheduleDiffMetadataRefresh());
+  });
+
+  [diffSeparator1, diffSeparator2].forEach((el) => {
+    if (!el) return;
+    el.addEventListener('change', () => scheduleDiffMetadataRefresh());
+    el.addEventListener('input', () => scheduleDiffMetadataRefresh(500));
+  });
 
   async function parseJsonResponse(resp) {
     const contentType = resp.headers?.get?.('content-type') || '';
@@ -653,6 +850,7 @@
         if (file) {
           assignFileToInput(input, file, key);
           updateFileBadge(badge, file);
+          scheduleDiffMetadataRefresh();
         }
       });
     }
@@ -667,6 +865,7 @@
         }
       }
       updateFileBadge(badge, file);
+      scheduleDiffMetadataRefresh();
     });
   };
 
@@ -933,7 +1132,7 @@
   async function handleDiffRequest(endpoint) {
     try {
       setDiffStatus('', 'info');
-      renderCreatedFiles([]);
+      renderCreatedFiles([], []);
 
       const file1 = diffFile1Input?.files?.[0] || diffSelectedFiles.get('file1');
       const file2 = diffFile2Input?.files?.[0] || diffSelectedFiles.get('file2');
@@ -945,9 +1144,9 @@
 
       let mappingPayload = '';
       try {
-        mappingPayload = getMappingPayload(diffMappingInput, { required: true });
+        mappingPayload = buildDiffMappingPayload({ required: true });
       } catch (err) {
-        setDiffStatus(err.message, 'error');
+        setDiffStatus(err.message || '请选择需要比较的数值列', 'error');
         return;
       }
 
@@ -1013,8 +1212,9 @@
       }
 
       const files = data.created_files || [];
+      const urls = data.download_urls || [];
       setDiffStatus(`生成成功：${files.length} 个输出文件`, 'success');
-      renderCreatedFiles(files);
+      renderCreatedFiles(files, urls);
     } catch (e) {
       console.error(e);
       setDiffStatus(`生成失败：${e.message}`, 'error');

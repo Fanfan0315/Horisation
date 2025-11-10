@@ -138,6 +138,38 @@ class CSVCleaner:
 
     @staticmethod
     def formatting(df: pd.DataFrame, mapping: list[dict]) -> pd.DataFrame:
+        df = df.copy().astype(object)
+
+        def _column_indices(column: str) -> list[int]:
+            try:
+                loc = df.columns.get_loc(column)
+            except KeyError:
+                return []
+
+            if isinstance(loc, slice):
+                return list(range(loc.start, loc.stop))
+            if isinstance(loc, (list, tuple)):
+                return [int(i) for i in loc]
+            if isinstance(loc, np.ndarray):
+                if loc.dtype == bool:
+                    return np.flatnonzero(loc).tolist()
+                return [int(i) for i in loc.tolist()]
+            return [int(loc)]
+
+        def _update_column(column: str, transform):
+            indices = _column_indices(column)
+            for idx in indices:
+                original = df.iloc[:, idx]
+                transformed = transform(original)
+                if isinstance(transformed, pd.Series):
+                    transformed = transformed.reindex(df.index)
+                    if transformed.dtype == object:
+                        df.iloc[:, idx] = transformed.tolist()
+                    else:
+                        df.iloc[:, idx] = transformed
+                else:
+                    df.iloc[:, idx] = transformed
+
         for m in mapping:
             cols = m.get('Column', [])
             trans_type = m.get('trans_type', None)
@@ -145,34 +177,46 @@ class CSVCleaner:
             if trans_type == 'str':
                 for col in cols:
                     if col in df.columns:
-                        df[col] = df[col].astype(str)
-                        df[col] = df[col].str.upper()
-                        df[col] = df[col].str.strip()
-                        df[col] = df[col].str.replace(" ", "_")
+                        def _str_transform(series: pd.Series) -> pd.Series:
+                            series = series.astype(str)
+                            series = series.str.upper()
+                            series = series.str.strip()
+                            return series.str.replace(" ", "_")
+
+                        _update_column(col, _str_transform)
 
             elif trans_type == 'int':
                 for col in cols:
                     if col in df.columns:
-                        df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
+                        def _int_transform(series: pd.Series) -> pd.Series:
+                            return pd.to_numeric(series, errors="coerce").astype("Int64")
+
+                        _update_column(col, _int_transform)
 
             elif trans_type == 'float':
                 decimals = int(m.get('decimals', 4)) if m.get('decimals') is not None else 4
                 for col in cols:
                     if col in df.columns:
-                        df[col] = pd.to_numeric(df[col], errors="coerce").round(decimals)
+                        def _float_transform(series: pd.Series) -> pd.Series:
+                            return pd.to_numeric(series, errors="coerce").round(decimals)
+
+                        _update_column(col, _float_transform)
 
             elif trans_type == 'bool':
                 for col in cols:
                     if col in df.columns:
-                        df[col] = df[col].astype("boolean")
+                        _update_column(col, lambda series: series.astype("boolean"))
 
             elif trans_type == 'percent':
                 decimals = int(m.get('decimals', 2)) if m.get('decimals') is not None else 2
                 for col in cols:
                     if col in df.columns:
-                        df[col] = pd.to_numeric(df[col], errors="coerce") * 100
-                        df[col] = df[col].round(decimals)
-                        df[col] = df[col].apply(lambda x: f"{x}%" if pd.notna(x) else pd.NA)
+                        def _percent_transform(series: pd.Series) -> pd.Series:
+                            series = pd.to_numeric(series, errors="coerce") * 100
+                            series = series.round(decimals)
+                            return series.apply(lambda x: f"{x}%" if pd.notna(x) else pd.NA)
+
+                        _update_column(col, _percent_transform)
 
             elif trans_type == 'date':
                 date_format = m.get("format", "YYYY-MM-DD")
@@ -186,29 +230,37 @@ class CSVCleaner:
 
                 for col in cols:
                     if col in df.columns:
-                        df[col] = df[col].apply(parse_date)
+                        def _date_transform(series: pd.Series) -> pd.Series:
+                            series = series.apply(parse_date)
+                            series = pd.to_datetime(series, errors="coerce")
+                            if date_format == "YYYY-MM-DD":
+                                return series.dt.strftime("%Y-%m-%d")
+                            if date_format == "DD_MM_YY":
+                                return series.dt.strftime("%d-%m-%y")
+                            if date_format == "MM-YY":
+                                return series.dt.strftime("%m-%y")
+                            return series
 
-                        if date_format == "YYYY-MM-DD":
-                            df[col] = df[col].dt.strftime("%Y-%m-%d")
-                        elif date_format == "DD_MM_YY":
-                            df[col] = df[col].dt.strftime("%d-%m-%y")
-                        elif date_format == "MM-YY":
-                            df[col] = df[col].dt.strftime("%m-%y")
+                        _update_column(col, _date_transform)
 
             elif trans_type == "scale":
                 factor = m.get("factor", 1)
                 operation = m.get("operation", "mul")
                 for col in cols:
                     if col in df.columns:
-                        df[col] = pd.to_numeric(df[col], errors="coerce")  # 转数值
-                        if operation == "mul":
-                            df[col] = df[col] * factor
-                        elif operation == "div":
-                            df[col] = df[col] / factor
-                        elif operation == "add":
-                            df[col] = df[col] + factor
-                        elif operation == "sub":
-                            df[col] = df[col] - factor
+                        def _scale_transform(series: pd.Series) -> pd.Series:
+                            series = pd.to_numeric(series, errors="coerce")
+                            if operation == "mul":
+                                return series * factor
+                            if operation == "div":
+                                return series / factor
+                            if operation == "add":
+                                return series + factor
+                            if operation == "sub":
+                                return series - factor
+                            return series
+
+                        _update_column(col, _scale_transform)
 
 
             elif trans_type == 'missing':
@@ -216,18 +268,25 @@ class CSVCleaner:
                 fill_value = m.get("fill_value")
                 for col in cols:
                     if col in df.columns:
-                        if strategy == "mean":
-                            df[col] = df[col].fillna(df[col].mean())
-                        elif strategy == "median":
-                            df[col] = df[col].fillna(df[col].median())
-                        elif strategy == "mode":
-                            mode_series = df[col].mode(dropna=True)
-                            if not mode_series.empty:
-                                df[col] = df[col].fillna(mode_series.iloc[0])
-                        elif strategy == "constant":
-                            df[col] = df[col].fillna(fill_value)
-                        elif strategy == "nan":
-                            df[col] = df[col].fillna(pd.NA)
+                        def _missing_transform(series: pd.Series) -> pd.Series:
+                            if strategy == "mean":
+                                numeric = pd.to_numeric(series, errors="coerce")
+                                return numeric.fillna(numeric.mean())
+                            if strategy == "median":
+                                numeric = pd.to_numeric(series, errors="coerce")
+                                return numeric.fillna(numeric.median())
+                            if strategy == "mode":
+                                mode_series = series.mode(dropna=True)
+                                if not mode_series.empty:
+                                    return series.fillna(mode_series.iloc[0])
+                                return series
+                            if strategy == "constant":
+                                return series.fillna(fill_value)
+                            if strategy == "nan":
+                                return series.fillna(pd.NA)
+                            return series
+
+                        _update_column(col, _missing_transform)
 
             elif trans_type == "outlier":
                 method = m.get("method", "zscore")
@@ -235,31 +294,50 @@ class CSVCleaner:
                 threshold = m.get("threshold", 3)
                 for col in cols:
                     if col in df.columns:
-                        series = df[col]
-                        lower_bound = None
-                        upper_bound = None
-                        if method == "zscore":
-                            mean, std = series.mean(), series.std()
-                            mask = abs(series - mean) > threshold * std
-                            lower_bound = mean - threshold * std
-                            upper_bound = mean + threshold * std
-                        elif method == "iqr":
-                            q1, q3 = series.quantile([0.25, 0.75])
-                            iqr = q3 - q1
-                            mask = (series < q1 - threshold * iqr) | (series > q3 + threshold * iqr)
-                            lower_bound = q1 - threshold * iqr
-                            upper_bound = q3 + threshold * iqr
-                            mask = (series < lower_bound) | (series > upper_bound)
+                        def _outlier_transform(series: pd.Series) -> pd.Series:
+                            numeric = pd.to_numeric(series, errors="coerce")
+                            if numeric.isna().all():
+                                return numeric
 
-                        if replace == "mean":
-                            df.loc[mask, col] = series.mean()
-                        elif replace == "median":
-                            df.loc[mask, col] = series.median()
-                        elif replace == "clip":
-                            if lower_bound is not None and upper_bound is not None:
-                                df.loc[mask, col] = series.clip(lower_bound, upper_bound)
-                        elif replace == "nan":
-                            df.loc[mask, col] = pd.NA
+                            mask = pd.Series(False, index=series.index)
+                            lower_bound = None
+                            upper_bound = None
+
+                            if method == "zscore":
+                                mean = numeric.mean()
+                                std = numeric.std()
+                                if pd.isna(std) or std == 0:
+                                    return numeric
+                                mask = (numeric - mean).abs() > threshold * std
+                                lower_bound = mean - threshold * std
+                                upper_bound = mean + threshold * std
+                            elif method == "iqr":
+                                q1 = numeric.quantile(0.25)
+                                q3 = numeric.quantile(0.75)
+                                if pd.isna(q1) or pd.isna(q3):
+                                    return numeric
+                                iqr = q3 - q1
+                                lower_bound = q1 - threshold * iqr
+                                upper_bound = q3 + threshold * iqr
+                                mask = (numeric < lower_bound) | (numeric > upper_bound)
+
+                            if not mask.any():
+                                return numeric
+
+                            if replace == "mean":
+                                return numeric.mask(mask, numeric.mean())
+                            if replace == "median":
+                                return numeric.mask(mask, numeric.median())
+                            if replace == "clip":
+                                if lower_bound is None or upper_bound is None:
+                                    return numeric
+                                clipped = numeric.clip(lower_bound, upper_bound)
+                                return numeric.mask(mask, clipped)
+                            if replace == "nan":
+                                return numeric.mask(mask, pd.NA)
+                            return numeric
+
+                        _update_column(col, _outlier_transform)
 
         df = df.astype(object).where(df.notna(), float("nan"))
         return df
